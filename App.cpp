@@ -17,6 +17,17 @@ import vulkan_hpp;
 constexpr uint32_t WIDTH = 800;
 constexpr uint32_t HEIGHT = 600;
 
+// What validation layers
+const std::vector<char const *> validationLayers = {
+    "VK_LAYER_KHRONOS_validation"
+};
+// and whether to enable them
+#ifdef NDEBUG
+constexpr bool enableValidationLayers = false;
+#else
+constexpr bool enableValidationLayers = true;
+#endif
+
 class HelloTriangleApplication {
 public:
     void run() {
@@ -33,6 +44,9 @@ private:
     vk::raii::Context context;
     vk::raii::Instance instance = nullptr;
 
+    // Set up callback function for debug messenging
+    vk::raii::DebugUtilsMessengerEXT debugMessenger = nullptr;
+
     void initWindow() {
         glfwInit();
 
@@ -45,6 +59,7 @@ private:
     void initVulkan() {
         // Create instance, the connection between the app and the Vulkan lib
         createInstance();
+        setupDebugMessenger();
     }
 
     void createInstance() {
@@ -55,38 +70,123 @@ private:
         appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
         appInfo.apiVersion = vk::ApiVersion14;
 
-        // Get the required instance extensions from GLFW.
-        uint32_t glfwExtensionCount = 0;
-        auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-        // Check if the required GLFW extensions are supported by the Vulkan implementation.
-        auto extensionProperties = context.enumerateInstanceExtensionProperties();
-        for (uint32_t i = 0; i < glfwExtensionCount; ++i) {
-            if (std::ranges::none_of(extensionProperties,
-                                     [glfwExtension = glfwExtensions[i]](auto const &extensionProperty) {
-                                         return strcmp(extensionProperty.extensionName, glfwExtension) == 0;
-                                     })) {
-                throw std::runtime_error("Required GLFW extension not supported: " + std::string(glfwExtensions[i]));
-            }
+        // Get the rqeuired layers
+        std::vector<const char *> requiredLayers;
+        if (enableValidationLayers) {
+            requiredLayers.assign(validationLayers.begin(), validationLayers.end());
         }
+
+        // Check if the required layers are supported by the Vulkan implementation
+        auto layerProperties = context.enumerateInstanceLayerProperties();
+        const auto unsupportedLayerIt = std::ranges::find_if(requiredLayers,
+                                                             [&layerProperties](auto const &requiredLayer) {
+                                                                 return std::ranges::none_of(layerProperties,
+                                                                     [requiredLayer](auto const &layerProperty) {
+                                                                         return strcmp(layerProperty.layerName,
+                                                                             requiredLayer) == 0;
+                                                                     });
+                                                             });
+        if (unsupportedLayerIt != requiredLayers.end()) {
+            throw std::runtime_error("Required layer not supported: " + std::string(*unsupportedLayerIt));
+        }
+
+        // Get the required extensions
+        auto requiredExtensions = getRequiredInstanceExtensions();
+
+        // Check if the required extensions are supported by the Vulkan implementation
+        auto extensionProperties = context.enumerateInstanceExtensionProperties();
+        const auto unsupportedPropertyIt = std::ranges::find_if(requiredExtensions,
+                                                                [&extensionProperties](auto const &requiredExtension) {
+                                                                    return std::ranges::none_of(extensionProperties,
+                                                                        [requiredExtension](
+                                                                    auto const &extensionProperty) {
+                                                                            return strcmp(
+                                                                                extensionProperty.extensionName,
+                                                                                requiredExtension) == 0;
+                                                                        });
+                                                                });
+        if (unsupportedPropertyIt != requiredExtensions.end()) {
+            throw std::runtime_error("Required extension not supported: " + std::string(*unsupportedPropertyIt));
+        }
+
         vk::InstanceCreateInfo createInfo{};
         createInfo.pApplicationInfo = &appInfo;
-        createInfo.enabledExtensionCount = glfwExtensionCount;
-        createInfo.ppEnabledExtensionNames = glfwExtensions;
+        createInfo.enabledLayerCount = static_cast<uint32_t>(requiredLayers.size());
+        createInfo.ppEnabledLayerNames = requiredLayers.data();
+        createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
+        createInfo.ppEnabledExtensionNames = requiredExtensions.data();
 
         // Create instance
         instance = vk::raii::Instance(context, createInfo);
     }
 
-    void mainLoop() {
+    void mainLoop() const {
         while (!glfwWindowShouldClose(window)) {
             glfwPollEvents();
         }
     }
 
-    void cleanup() {
+    void cleanup() const {
         glfwDestroyWindow(window);
 
         glfwTerminate();
+    }
+
+    void setupDebugMessenger() {
+        if constexpr (!enableValidationLayers) return;
+
+        // Fill in struct with details about the messenger and its callback
+        constexpr vk::DebugUtilsMessageSeverityFlagsEXT severityFlags(
+            vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose |
+            vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning |
+            vk::DebugUtilsMessageSeverityFlagBitsEXT::eError);
+        constexpr vk::DebugUtilsMessageTypeFlagsEXT messageTypeFlags(
+            vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance |
+            vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation);
+        vk::DebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCreateInfoEXT;
+        debugUtilsMessengerCreateInfoEXT.messageSeverity = severityFlags;
+        debugUtilsMessengerCreateInfoEXT.messageType = messageTypeFlags;
+        // Pointer to callback function
+        debugUtilsMessengerCreateInfoEXT.pfnUserCallback = &debugCallback;
+        // Optionally, pass a pointer to the pUserData field which will be passed to the callback function via that parameter
+        // Use this, for example, to pass a pointer to the mai class.
+
+        debugMessenger = instance.createDebugUtilsMessengerEXT(debugUtilsMessengerCreateInfoEXT);
+    }
+
+    // Returns list of the required instance extensions
+    static std::vector<const char *> getRequiredInstanceExtensions() {
+        uint32_t glfwExtensionCount = 0;
+        // extensions specified by GLFW are always required when using it for windowing
+        const auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+        std::vector extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+        if (enableValidationLayers) {
+            // debug messenger extension
+            extensions.push_back(vk::EXTDebugUtilsExtensionName);
+        }
+
+        return extensions;
+    }
+
+    /*
+     * INPUT:
+     * severity: flag that specifies severity of message (eVerbose, eInfo, eWarning, eError)
+     *          setup so you can check if a message is equal or worse than another
+     *          i.e. severity >= ...::eWarning {} will show both warning and error messages
+     * type: flag for whether message relates to Vulkan specs or not (eGeneral, eValidation, ePerformance)
+     * pCallbackData: struct with message details like the debug message and Vulkan object handles related to it
+     * pUserData: pointer specified during setup of the callback and allows passing in your own data
+     *
+     * OUTPUT:
+     * Boolean that indicates if the Vulkan call that triggered the validation layer message should be aborted.
+     */
+    static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity,
+                                                          const vk::DebugUtilsMessageTypeFlagsEXT type,
+                                                          const vk::DebugUtilsMessengerCallbackDataEXT *pCallbackData,
+                                                          void *pUserData) {
+        std::cerr << "validation layer: type " << to_string(type) << " msg: " << pCallbackData->pMessage << std::endl;
+
+        return vk::False;
     }
 };
 
