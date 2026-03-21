@@ -44,7 +44,7 @@ private:
     vk::raii::Context context;
     vk::raii::Instance instance = nullptr;
 
-    // Set up callback function for debug messenging
+    // Set up callback function for debug messaging
     vk::raii::DebugUtilsMessengerEXT debugMessenger = nullptr;
 
     // Store graphics card
@@ -52,6 +52,12 @@ private:
     std::vector<const char *> requiredDeviceExtension = {
         vk::KHRSwapchainExtensionName
     };
+
+    // Store logical device handle and features
+    vk::raii::Device device = nullptr;
+    vk::PhysicalDeviceFeatures deviceFeatures; // currently unused. used in later sections
+    // Store graphics queue family handle
+    vk::raii::Queue graphicsQueue = nullptr;
 
     void initWindow() {
         glfwInit();
@@ -68,6 +74,7 @@ private:
         setupDebugMessenger();
         // Pick graphics card(s)
         pickPhysicalDevice();
+        createLogicalDevice();
     }
 
     void createInstance() {
@@ -91,7 +98,7 @@ private:
                                                                  return std::ranges::none_of(layerProperties,
                                                                      [requiredLayer](auto const &layerProperty) {
                                                                          return strcmp(layerProperty.layerName,
-                                                                             requiredLayer) == 0;
+                                                                                 requiredLayer) == 0;
                                                                      });
                                                              });
         if (unsupportedLayerIt != requiredLayers.end()) {
@@ -109,8 +116,8 @@ private:
                                                                         [requiredExtension](
                                                                     auto const &extensionProperty) {
                                                                             return strcmp(
-                                                                                extensionProperty.extensionName,
-                                                                                requiredExtension) == 0;
+                                                                                    extensionProperty.extensionName,
+                                                                                    requiredExtension) == 0;
                                                                         });
                                                                 });
         if (unsupportedPropertyIt != requiredExtensions.end()) {
@@ -197,18 +204,18 @@ private:
         return vk::False;
     }
 
-    bool isDeviceSuitable(vk::raii::PhysicalDevice const &physicalDevice) {
+    bool isDeviceSuitable(vk::raii::PhysicalDevice const &physical_device) {
         // Check if the physicalDevice supports the Vulkan 1.3 API version
-        bool supportsVulkan1_3 = physicalDevice.getProperties().apiVersion >= vk::ApiVersion13;
+        bool supportsVulkan1_3 = physical_device.getProperties().apiVersion >= vk::ApiVersion13;
 
         // Check if any of the queue families support graphics operations
-        auto queueFamilies = physicalDevice.getQueueFamilyProperties();
+        auto queueFamilies = physical_device.getQueueFamilyProperties();
         bool supportsGraphics = std::ranges::any_of(queueFamilies, [](auto const &qfp) {
             return !!(qfp.queueFlags & vk::QueueFlagBits::eGraphics);
         });
 
         // Check if all required physicalDevice extensions are available
-        auto availableDeviceExtensions = physicalDevice.enumerateDeviceExtensionProperties();
+        auto availableDeviceExtensions = physical_device.enumerateDeviceExtensionProperties();
         bool supportsAllRequiredExtensions =
                 std::ranges::all_of(requiredDeviceExtension,
                                     [&availableDeviceExtensions](auto const &requiredDeviceExtension) {
@@ -224,11 +231,11 @@ private:
 
         // Check if the physicalDevice supports the required features (dynamic rendering and extended dynamic state)
         auto features =
-                physicalDevice
-                .template getFeatures2<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan13Features,
+                physical_device
+                .getFeatures2<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan13Features,
                     vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
-        bool supportsRequiredFeatures = features.template get<vk::PhysicalDeviceVulkan13Features>().dynamicRendering &&
-                                        features.template get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>().
+        bool supportsRequiredFeatures = features.get<vk::PhysicalDeviceVulkan13Features>().dynamicRendering &&
+                                        features.get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>().
                                         extendedDynamicState;
 
         // Return true if the physicalDevice meets all the criteria
@@ -237,13 +244,54 @@ private:
 
     void pickPhysicalDevice() {
         std::vector<vk::raii::PhysicalDevice> physicalDevices = instance.enumeratePhysicalDevices();
-        auto const devIter = std::ranges::find_if(physicalDevices, [&](auto const &physicalDevice) {
-            return isDeviceSuitable(physicalDevice);
+        auto const devIter = std::ranges::find_if(physicalDevices, [&](auto const &pd) {
+            return isDeviceSuitable(pd);
         });
         if (devIter == physicalDevices.end()) {
             throw std::runtime_error("failed to find a suitable GPU!");
         }
         physicalDevice = *devIter;
+    }
+
+    void createLogicalDevice() {
+        // Find index of the first queue family
+        std::vector<vk::QueueFamilyProperties> queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
+
+        // Get the first index into that queue family that supports graphics
+        auto graphicsQueueFamilyProperty = std::ranges::find_if(queueFamilyProperties, [](auto const &qfp) {
+            return (qfp.queueFlags & vk::QueueFlagBits::eGraphics) != static_cast<vk::QueueFlags>(0);
+        });
+        assert(graphicsQueueFamilyProperty != queueFamilyProperties.end() && "No graphics queue family found!");
+
+        auto graphicsIndex = static_cast<uint32_t>(std::distance(queueFamilyProperties.begin(),
+                                                                 graphicsQueueFamilyProperty));
+
+        // Query for 1.3 features
+        // Structure chain automatically connects these structures together by setting up pNext pointers between them
+        // Default-construct the chain and then set the feature fields explicitly. Initializer-list / designated
+        // initializers don't match StructureChain's constructors (clangd/clang error), so assign members via .get<T>().
+        vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan13Features,
+            vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> featureChain{};
+        // Enable dynamic rendering from Vulkan 1.3
+        featureChain.get<vk::PhysicalDeviceVulkan13Features>().dynamicRendering = VK_TRUE;
+        // Enable extended dynamic state from the extension
+        featureChain.get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>().extendedDynamicState = VK_TRUE;
+
+        // Create a device
+        float queuePriority = 0.5f; // influence scheduling of command buffer (0.0-1.0)
+        vk::DeviceQueueCreateInfo deviceQueueCreateInfo;
+        deviceQueueCreateInfo.queueFamilyIndex = graphicsIndex;
+        deviceQueueCreateInfo.queueCount = 1;
+        deviceQueueCreateInfo.pQueuePriorities = &queuePriority;
+        vk::DeviceCreateInfo deviceCreateInfo;
+        deviceCreateInfo.pNext = &featureChain.get<vk::PhysicalDeviceFeatures2>();
+        deviceCreateInfo.queueCreateInfoCount = 1;
+        deviceCreateInfo.pQueueCreateInfos = &deviceQueueCreateInfo;
+        deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(requiredDeviceExtension.size());
+        deviceCreateInfo.ppEnabledExtensionNames = requiredDeviceExtension.data();
+
+        device = vk::raii::Device(physicalDevice, deviceCreateInfo);
+        graphicsQueue = vk::raii::Queue(device, graphicsIndex, 0);
     }
 };
 
