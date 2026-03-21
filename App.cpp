@@ -10,6 +10,8 @@
 import vulkan_hpp;
 #endif
 
+// If not using a library like GLFW, make sure to import proper platform-specific extensions for surface creation.
+// https://docs.vulkan.org/tutorial/latest/03_Drawing_a_triangle/01_Presentation/00_Window_surface.html#_window_surface_creation
 #define GLFW_INCLUDE_VULKAN // REQUIRED only for GLFW CreateWindowSurface.
 #include <GLFW/glfw3.h>
 
@@ -47,6 +49,10 @@ private:
     // Set up callback function for debug messaging
     vk::raii::DebugUtilsMessengerEXT debugMessenger = nullptr;
 
+    // Use the Window System Integration (WSI) to create a surface to present rendered images to
+    // Needs to be created right after the instance creation since it can influence the physical device selection.
+    vk::raii::SurfaceKHR surface = nullptr;
+
     // Store graphics card
     vk::raii::PhysicalDevice physicalDevice = nullptr;
     std::vector<const char *> requiredDeviceExtension = {
@@ -72,6 +78,7 @@ private:
         // Create instance, the connection between the app and the Vulkan lib
         createInstance();
         setupDebugMessenger();
+        createSurface();
         // Pick graphics card(s)
         pickPhysicalDevice();
         createLogicalDevice();
@@ -169,6 +176,15 @@ private:
         debugMessenger = instance.createDebugUtilsMessengerEXT(debugUtilsMessengerCreateInfoEXT);
     }
 
+    void createSurface() {
+        // Again, this is more complicated if we're not using a library, but since we are, this is very simple
+        VkSurfaceKHR _surface;
+        if (glfwCreateWindowSurface(*instance, window, nullptr, &_surface) != 0) {
+            throw std::runtime_error("failed to create window surface!");
+        }
+        surface = vk::raii::SurfaceKHR(instance, _surface);
+    }
+
     // Returns list of the required instance extensions
     static std::vector<const char *> getRequiredInstanceExtensions() {
         uint32_t glfwExtensionCount = 0;
@@ -257,14 +273,20 @@ private:
         // Find index of the first queue family
         std::vector<vk::QueueFamilyProperties> queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
 
-        // Get the first index into that queue family that supports graphics
-        auto graphicsQueueFamilyProperty = std::ranges::find_if(queueFamilyProperties, [](auto const &qfp) {
-            return (qfp.queueFlags & vk::QueueFlagBits::eGraphics) != static_cast<vk::QueueFlags>(0);
-        });
-        assert(graphicsQueueFamilyProperty != queueFamilyProperties.end() && "No graphics queue family found!");
 
-        auto graphicsIndex = static_cast<uint32_t>(std::distance(queueFamilyProperties.begin(),
-                                                                 graphicsQueueFamilyProperty));
+        // Get the first index into that queue family that supports graphics and present
+        uint32_t queueIndex = ~0;
+        for (uint32_t qfpIndex = 0; qfpIndex < queueFamilyProperties.size(); qfpIndex++) {
+            if ((queueFamilyProperties[qfpIndex].queueFlags & vk::QueueFlagBits::eGraphics) &&
+                physicalDevice.getSurfaceSupportKHR(qfpIndex, *surface)) {
+                // found a queue family that supports both graphics and present
+                queueIndex = qfpIndex;
+                break;
+            }
+        }
+        if (queueIndex == ~0) {
+            throw std::runtime_error("Could not find a queue for graphics and present -> terminating");
+        }
 
         // Query for 1.3 features
         // Structure chain automatically connects these structures together by setting up pNext pointers between them
@@ -272,6 +294,7 @@ private:
         // initializers don't match StructureChain's constructors (clangd/clang error), so assign members via .get<T>().
         vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan13Features,
             vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> featureChain{};
+        // Leave PhysicalDeviceFeatures2 empty
         // Enable dynamic rendering from Vulkan 1.3
         featureChain.get<vk::PhysicalDeviceVulkan13Features>().dynamicRendering = VK_TRUE;
         // Enable extended dynamic state from the extension
@@ -280,7 +303,7 @@ private:
         // Create a device
         float queuePriority = 0.5f; // influence scheduling of command buffer (0.0-1.0)
         vk::DeviceQueueCreateInfo deviceQueueCreateInfo;
-        deviceQueueCreateInfo.queueFamilyIndex = graphicsIndex;
+        deviceQueueCreateInfo.queueFamilyIndex = queueIndex;
         deviceQueueCreateInfo.queueCount = 1;
         deviceQueueCreateInfo.pQueuePriorities = &queuePriority;
         vk::DeviceCreateInfo deviceCreateInfo;
@@ -291,7 +314,7 @@ private:
         deviceCreateInfo.ppEnabledExtensionNames = requiredDeviceExtension.data();
 
         device = vk::raii::Device(physicalDevice, deviceCreateInfo);
-        graphicsQueue = vk::raii::Queue(device, graphicsIndex, 0);
+        graphicsQueue = vk::raii::Queue(device, queueIndex, 0);
     }
 };
 
