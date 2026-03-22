@@ -65,6 +65,12 @@ private:
     // Store graphics queue family handle
     vk::raii::Queue graphicsQueue = nullptr;
 
+    vk::raii::SwapchainKHR swapChain = nullptr;
+    std::vector<vk::Image> swapChainImages;
+    vk::SurfaceFormatKHR swapChainSurfaceFormat;
+    vk::Extent2D swapChainExtent;
+    std::vector<vk::raii::ImageView> swapChainImageViews;
+
     void initWindow() {
         glfwInit();
 
@@ -82,6 +88,7 @@ private:
         // Pick graphics card(s)
         pickPhysicalDevice();
         createLogicalDevice();
+        createSwapChain();
     }
 
     void createInstance() {
@@ -92,7 +99,7 @@ private:
         appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
         appInfo.apiVersion = vk::ApiVersion14;
 
-        // Get the rqeuired layers
+        // Get the required layers
         std::vector<const char *> requiredLayers;
         if (enableValidationLayers) {
             requiredLayers.assign(validationLayers.begin(), validationLayers.end());
@@ -183,41 +190,6 @@ private:
             throw std::runtime_error("failed to create window surface!");
         }
         surface = vk::raii::SurfaceKHR(instance, _surface);
-    }
-
-    // Returns list of the required instance extensions
-    static std::vector<const char *> getRequiredInstanceExtensions() {
-        uint32_t glfwExtensionCount = 0;
-        // extensions specified by GLFW are always required when using it for windowing
-        const auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-        std::vector extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
-        if (enableValidationLayers) {
-            // debug messenger extension
-            extensions.push_back(vk::EXTDebugUtilsExtensionName);
-        }
-
-        return extensions;
-    }
-
-    /*
-     * INPUT:
-     * severity: flag that specifies severity of message (eVerbose, eInfo, eWarning, eError)
-     *          setup so you can check if a message is equal or worse than another
-     *          i.e. severity >= ...::eWarning {} will show both warning and error messages
-     * type: flag for whether message relates to Vulkan specs or not (eGeneral, eValidation, ePerformance)
-     * pCallbackData: struct with message details like the debug message and Vulkan object handles related to it
-     * pUserData: pointer specified during setup of the callback and allows passing in your own data
-     *
-     * OUTPUT:
-     * Boolean that indicates if the Vulkan call that triggered the validation layer message should be aborted.
-     */
-    static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity,
-                                                          const vk::DebugUtilsMessageTypeFlagsEXT type,
-                                                          const vk::DebugUtilsMessengerCallbackDataEXT *pCallbackData,
-                                                          void *pUserData) {
-        std::cerr << "validation layer: type " << to_string(type) << " msg: " << pCallbackData->pMessage << std::endl;
-
-        return vk::False;
     }
 
     bool isDeviceSuitable(vk::raii::PhysicalDevice const &physical_device) {
@@ -315,6 +287,153 @@ private:
 
         device = vk::raii::Device(physicalDevice, deviceCreateInfo);
         graphicsQueue = vk::raii::Queue(device, queueIndex, 0);
+    }
+
+    void createSwapChain() {
+        // Get basic surface capabilities
+        const vk::SurfaceCapabilitiesKHR surfaceCapabilities = physicalDevice.getSurfaceCapabilitiesKHR(*surface);
+        swapChainExtent = chooseSwapExtent(surfaceCapabilities);
+        const uint32_t minImageCount = chooseSwapMinImageCount(surfaceCapabilities);
+
+        // Get supported surface formats
+        const std::vector<vk::SurfaceFormatKHR> availableFormats = physicalDevice.getSurfaceFormatsKHR(surface);
+        swapChainSurfaceFormat = chooseSwapSurfaceFormat(availableFormats);
+
+        // Get supported presentation modes
+        const std::vector<vk::PresentModeKHR> availablePresentModes = physicalDevice.getSurfacePresentModesKHR(surface);
+        const vk::PresentModeKHR presentMode = chooseSwapPresentMode(availablePresentModes);
+
+        vk::SwapchainCreateInfoKHR swapChainCreateInfo;
+        swapChainCreateInfo.surface = *surface;
+        swapChainCreateInfo.minImageCount = minImageCount;
+        swapChainCreateInfo.imageFormat = swapChainSurfaceFormat.format;
+        swapChainCreateInfo.imageColorSpace = swapChainSurfaceFormat.colorSpace;
+        swapChainCreateInfo.imageExtent = swapChainExtent;
+        // Specify the number of layers of each image. Typically just 1 unless doing stereoscopic 3D apps
+        swapChainCreateInfo.imageArrayLayers = 1;
+        // Specify what kind of operations we'll use the images in the swap chain for
+        // We're rendering directly to them, so eColorAttachment
+        // If you first do post-processing, use something like eTransferDst
+        swapChainCreateInfo.imageUsage = vk::ImageUsageFlagBits::eColorAttachment;
+        // Specifies how to handle swap chain images that might be used across multiple queue families.
+        // eExclusive: image owned by one family at a time and ownership must be explicitly transferred before using
+        // eConcurrent: can be used across families without explicit ownership transfers. Requires specifying which queue families will be used with additional parameters.
+        swapChainCreateInfo.imageSharingMode = vk::SharingMode::eExclusive;
+        // Specify certain transform should be applied to images like rotations or flips. currentTransform means no transforms.
+        swapChainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
+        // Specifies if the alpha channel should be used for blending with other windows in the window system
+        // Usually ignore alpha, so just eOpaque
+        swapChainCreateInfo.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;
+        swapChainCreateInfo.presentMode = presentMode;
+        swapChainCreateInfo.clipped = true;
+
+        swapChain = vk::raii::SwapchainKHR(device, swapChainCreateInfo);
+        swapChainImages = swapChain.getImages();
+    }
+
+    static uint32_t chooseSwapMinImageCount(vk::SurfaceCapabilitiesKHR const &surfaceCapabilities) {
+        auto minImageCount = std::max(3u, surfaceCapabilities.minImageCount);
+        if ((0 < surfaceCapabilities.maxImageCount) && (surfaceCapabilities.maxImageCount < minImageCount)) {
+            minImageCount = surfaceCapabilities.maxImageCount;
+        }
+        return minImageCount;
+    }
+
+    /*
+     * Determine the correct surface format (color depth)
+     */
+    static vk::SurfaceFormatKHR chooseSwapSurfaceFormat(std::vector<vk::SurfaceFormatKHR> const &availableFormats) {
+        // Each SurfaceFormatKHR contains a `format` and `colorSpace` member.
+        // `format` specifies the colors channels and types
+        // `colorSpace` indicates if the SRGB color space is supported or not
+        assert(!availableFormats.empty());
+
+        // Use SRGB if available
+        const auto formatIt = std::ranges::find_if(
+            availableFormats,
+            [](const auto &format) {
+                return format.format == vk::Format::eB8G8R8A8Srgb &&
+                       format.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear;
+            }
+        );
+        // If not available, just use the first format specified
+        return formatIt != availableFormats.end() ? *formatIt : availableFormats[0];
+    }
+
+    /*
+      Determine the correct presentation mode (condition for "swapping" images to the screen)
+      Four options:
+      - eImmediate: Images submitted by your app are transferred to the screen right away. May result in tearing.
+      - eFifo: Swap chain is a queue where the display takes from front when refreshed and program inserts rendered images at the back. If queue is full, then program has to wait. This is like vsync.
+      - eFifoRelaxed: Same as previous, but if the application is late and the queue was empty at the last vertical blank, then instead of waiting for the next vertical blank, the image is transferred right away when it finally arrives. Results in tearing.
+      - eMailbox: Another version of eFifo. Instead of blocking the app when queue is full, the images that are in queue are replaced with newer ones. Renders frame faster while still avoiding tearing. Thus, it has fewer latency issues. Also called "triple buffering".
+     */
+    static vk::PresentModeKHR chooseSwapPresentMode(std::vector<vk::PresentModeKHR> const &availablePresentModes) {
+        // eFifo is the only guaranteed available mode
+        assert(std::ranges::any_of(
+                availablePresentModes,
+                [](auto presentMode) {return presentMode==vk::PresentModeKHR::eFifo;})
+        );
+        // Pick eMailbox if available, otherwise default to eFifo.
+        return std::ranges::any_of(
+                   availablePresentModes,
+                   [](const vk::PresentModeKHR value) { return vk::PresentModeKHR::eMailbox == value; }
+               )
+                   ? vk::PresentModeKHR::eMailbox
+                   : vk::PresentModeKHR::eFifo;
+    }
+
+    /*
+    Determine the correct swap extend (resolution of images in swap chain)
+    Typically this resolution is the same as the window, but some window managers allow you to set them separately.
+   */
+    vk::Extent2D chooseSwapExtent(vk::SurfaceCapabilitiesKHR const &capabilities) const {
+        if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
+            return capabilities.currentExtent;
+        }
+        // Query window resolution in pixels before matching it against the min and max image extent
+        int width, height;
+        glfwGetFramebufferSize(window, &width, &height);
+
+        return {
+            std::clamp<uint32_t>(width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
+            std::clamp<uint32_t>(height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height)
+        };
+    }
+
+    // Returns list of the required instance extensions
+    static std::vector<const char *> getRequiredInstanceExtensions() {
+        uint32_t glfwExtensionCount = 0;
+        // extensions specified by GLFW are always required when using it for windowing
+        const auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+        std::vector extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+        if (enableValidationLayers) {
+            // debug messenger extension
+            extensions.push_back(vk::EXTDebugUtilsExtensionName);
+        }
+
+        return extensions;
+    }
+
+    /*
+     * INPUT:
+     * severity: flag that specifies severity of message (eVerbose, eInfo, eWarning, eError)
+     *          setup so you can check if a message is equal or worse than another
+     *          i.e. severity >= ...::eWarning {} will show both warning and error messages
+     * type: flag for whether message relates to Vulkan specs or not (eGeneral, eValidation, ePerformance)
+     * pCallbackData: struct with message details like the debug message and Vulkan object handles related to it
+     * pUserData: pointer specified during setup of the callback and allows passing in your own data
+     *
+     * OUTPUT:
+     * Boolean that indicates if the Vulkan call that triggered the validation layer message should be aborted.
+     */
+    static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity,
+                                                          const vk::DebugUtilsMessageTypeFlagsEXT type,
+                                                          const vk::DebugUtilsMessengerCallbackDataEXT *pCallbackData,
+                                                          void *pUserData) {
+        std::cerr << "validation layer: type " << to_string(type) << " msg: " << pCallbackData->pMessage << std::endl;
+
+        return vk::False;
     }
 };
 
