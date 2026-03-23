@@ -89,6 +89,7 @@ private:
         pickPhysicalDevice();
         createLogicalDevice();
         createSwapChain();
+        createImageViews();
     }
 
     void createInstance() {
@@ -329,6 +330,22 @@ private:
 
         swapChain = vk::raii::SwapchainKHR(device, swapChainCreateInfo);
         swapChainImages = swapChain.getImages();
+    }
+
+    void createImageViews() {
+        assert(swapChainImages.emplace_back());
+
+        vk::ImageViewCreateInfo imageViewCreateInfo;
+        imageViewCreateInfo.viewType = vk::ImageViewType::e2D;
+        imageViewCreateInfo.format = swapChainSurfaceFormat.format;
+        imageViewCreateInfo.subresourceRange = {
+            vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1
+        };
+
+        for (auto &image: swapChainImages) {
+            imageViewCreateInfo.image = image;
+            swapChainImageViews.emplace_back(device, imageViewCreateInfo);
+        }
     }
 
     static uint32_t chooseSwapMinImageCount(vk::SurfaceCapabilitiesKHR const &surfaceCapabilities) {
