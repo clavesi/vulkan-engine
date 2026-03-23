@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
@@ -114,7 +115,7 @@ private:
                                                                  return std::ranges::none_of(layerProperties,
                                                                      [requiredLayer](auto const &layerProperty) {
                                                                          return strcmp(layerProperty.layerName,
-                                                                                 requiredLayer) == 0;
+                                                                             requiredLayer) == 0;
                                                                      });
                                                              });
         if (unsupportedLayerIt != requiredLayers.end()) {
@@ -132,8 +133,8 @@ private:
                                                                         [requiredExtension](
                                                                     auto const &extensionProperty) {
                                                                             return strcmp(
-                                                                                    extensionProperty.extensionName,
-                                                                                    requiredExtension) == 0;
+                                                                                extensionProperty.extensionName,
+                                                                                requiredExtension) == 0;
                                                                         });
                                                                 });
         if (unsupportedPropertyIt != requiredExtensions.end()) {
@@ -219,12 +220,14 @@ private:
                                                                    });
                                     });
 
-        // Check if the physicalDevice supports the required features (dynamic rendering and extended dynamic state)
+        // Check if the physicalDevice supports the required features.
         auto features =
                 physical_device
-                .getFeatures2<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan13Features,
+                .getFeatures2<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features,
+                    vk::PhysicalDeviceVulkan13Features,
                     vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
-        bool supportsRequiredFeatures = features.get<vk::PhysicalDeviceVulkan13Features>().dynamicRendering &&
+        bool supportsRequiredFeatures = features.get<vk::PhysicalDeviceVulkan11Features>().shaderDrawParameters &&
+                                        features.get<vk::PhysicalDeviceVulkan13Features>().dynamicRendering &&
                                         features.get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>().
                                         extendedDynamicState;
 
@@ -262,13 +265,16 @@ private:
             throw std::runtime_error("Could not find a queue for graphics and present -> terminating");
         }
 
-        // Query for 1.3 features
+        // Query for 1.1 and 1.3 features
         // Structure chain automatically connects these structures together by setting up pNext pointers between them
         // Default-construct the chain and then set the feature fields explicitly. Initializer-list / designated
         // initializers don't match StructureChain's constructors (clangd/clang error), so assign members via .get<T>().
-        vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan13Features,
+        vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features,
+            vk::PhysicalDeviceVulkan13Features,
             vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> featureChain{};
         // Leave PhysicalDeviceFeatures2 empty
+        // Enable shader draw parameters required by SPIR-V DrawParameters capability
+        featureChain.get<vk::PhysicalDeviceVulkan11Features>().shaderDrawParameters = VK_TRUE;
         // Enable dynamic rendering from Vulkan 1.3
         featureChain.get<vk::PhysicalDeviceVulkan13Features>().dynamicRendering = VK_TRUE;
         // Enable extended dynamic state from the extension
@@ -334,13 +340,12 @@ private:
     }
 
     void createImageViews() {
-        assert(swapChainImages.emplace_back());
+        assert(swapChainImageViews.empty());
 
-        vk::ImageViewCreateInfo imageViewCreateInfo;
-        imageViewCreateInfo.viewType = vk::ImageViewType::e2D;
-        imageViewCreateInfo.format = swapChainSurfaceFormat.format;
-        imageViewCreateInfo.subresourceRange = {
-            vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1
+        vk::ImageViewCreateInfo imageViewCreateInfo{
+            .viewType = vk::ImageViewType::e2D,
+            .format = swapChainSurfaceFormat.format,
+            .subresourceRange = {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1}
         };
 
         for (auto &image: swapChainImages) {
@@ -350,7 +355,34 @@ private:
     }
 
     void createGraphicsPipeline() {
+        // Create a shader module which are just thin wrappers around the shader bytecode.
+        vk::raii::ShaderModule shaderModule = createShaderModule(readFile("shaders/shader.spv"));
 
+        // Assign shaders to a specific pipeline stage
+        vk::PipelineShaderStageCreateInfo vertShaderStageInfo{
+            .stage = vk::ShaderStageFlagBits::eVertex, .
+            module = shaderModule,
+            .pName = "vertMain"
+        };
+        vk::PipelineShaderStageCreateInfo fragShaderStageInfo{
+            .stage = vk::ShaderStageFlagBits::eFragment,
+            .module = shaderModule,
+            .pName = "fragMain"
+        };
+        vk::PipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+    }
+
+    /*
+     * Take buffer with the bytecode and return a ShaderModule
+     */
+    [[nodiscard]] vk::raii::ShaderModule createShaderModule(std::vector<char> const &code) const {
+        vk::ShaderModuleCreateInfo createInfo{
+            .codeSize = code.size() * sizeof(char),
+            .pCode = reinterpret_cast<const uint32_t *>(code.data())
+        };
+        vk::raii::ShaderModule shaderModule{device, createInfo};
+
+        return shaderModule;
     }
 
     static uint32_t chooseSwapMinImageCount(vk::SurfaceCapabilitiesKHR const &surfaceCapabilities) {
@@ -456,6 +488,22 @@ private:
         std::cerr << "validation layer: type " << to_string(type) << " msg: " << pCallbackData->pMessage << std::endl;
 
         return vk::False;
+    }
+
+    static std::vector<char> readFile(const std::string &filename) {
+        // Read the file as a binary file and start reading from end
+        std::ifstream file(filename, std::ios::ate | std::ios::binary);
+        if (!file.is_open()) {
+            throw std::runtime_error("failed to open file!");
+        }
+        // Starting from end means we can use the read position to determine the size of the file and allocate a buffer.
+        std::vector<char> buffer(file.tellg());
+        // Seek back to the beginning and read all bytes at once
+        file.seekg(0, std::ios::beg);
+        file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+        file.close();
+
+        return buffer;
     }
 };
 
