@@ -72,6 +72,8 @@ private:
     vk::Extent2D swapChainExtent;
     std::vector<vk::raii::ImageView> swapChainImageViews;
 
+    vk::raii::PipelineLayout pipelineLayout = nullptr;
+
     void initWindow() {
         glfwInit();
 
@@ -115,7 +117,7 @@ private:
                                                                  return std::ranges::none_of(layerProperties,
                                                                      [requiredLayer](auto const &layerProperty) {
                                                                          return strcmp(layerProperty.layerName,
-                                                                             requiredLayer) == 0;
+                                                                                 requiredLayer) == 0;
                                                                      });
                                                              });
         if (unsupportedLayerIt != requiredLayers.end()) {
@@ -133,8 +135,8 @@ private:
                                                                         [requiredExtension](
                                                                     auto const &extensionProperty) {
                                                                             return strcmp(
-                                                                                extensionProperty.extensionName,
-                                                                                requiredExtension) == 0;
+                                                                                    extensionProperty.extensionName,
+                                                                                    requiredExtension) == 0;
                                                                         });
                                                                 });
         if (unsupportedPropertyIt != requiredExtensions.end()) {
@@ -359,17 +361,90 @@ private:
         vk::raii::ShaderModule shaderModule = createShaderModule(readFile("shaders/shader.spv"));
 
         // Assign shaders to a specific pipeline stage
-        vk::PipelineShaderStageCreateInfo vertShaderStageInfo{
+        vk::PipelineShaderStageCreateInfo vertShaderInfo{
             .stage = vk::ShaderStageFlagBits::eVertex, .
             module = shaderModule,
             .pName = "vertMain"
         };
-        vk::PipelineShaderStageCreateInfo fragShaderStageInfo{
+        vk::PipelineShaderStageCreateInfo fragShaderInfo{
             .stage = vk::ShaderStageFlagBits::eFragment,
             .module = shaderModule,
             .pName = "fragMain"
         };
-        vk::PipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+        vk::PipelineShaderStageCreateInfo shaderStages[] = {vertShaderInfo, fragShaderInfo};
+
+        // This struct describes the format of the vertex data to be passed to the vert shader
+        vk::PipelineVertexInputStateCreateInfo vertexInputInfo;
+        // This struct describes what kind of geometry will be drawn from the vertices and if primitive restart should be enabled.
+        vk::PipelineInputAssemblyStateCreateInfo inputAssemblyInfo{
+            .topology = vk::PrimitiveTopology::eTriangleList
+        };
+        // Make viewport and scissor states dynamic
+        vk::PipelineViewportStateCreateInfo viewportInfo{
+            .viewportCount = 1,
+            .scissorCount = 1
+        };
+
+        // Rasterizer struct which takes the geometry from the vert shader and turns it into fragments to be colored by frag shader.
+        vk::PipelineRasterizationStateCreateInfo rasterizerInfo{
+            // True means fragments that are beyond the near and far planes ar clamped to it instead of discarding them.
+            // Also requires setting a GPU feature. Sometimes used for shadow maps.
+            .depthClampEnable = vk::False,
+            // True means geometry never passes through the rasterizer stage
+            .rasterizerDiscardEnable = vk::False,
+            // Determines how fragments are generated for geometry. Any other mode than this requires enabling a GPU feature.
+            .polygonMode = vk::PolygonMode::eFill,
+            // Determines the type of face culling to use. Disabled, front, back, or both.
+            .cullMode = vk::CullModeFlagBits::eBack,
+            // Specifies the vertex order for faces to be front-facing.
+            .frontFace = vk::FrontFace::eClockwise,
+            // Can alter depth values by constant or based on a fragment's slope. Sometimes used for shadow mapping.
+            .depthBiasEnable = vk::False,
+            // Thickness of lines in terms of number of fragments. Any higher than 1.0f requires enabling the `wideLines` GPU feature.
+            .lineWidth = 1.0f
+        };
+
+        // This struct describes multisampling, one of the ways to perform antialiasing. For now, it's disabled.
+        vk::PipelineMultisampleStateCreateInfo multisamplingInfo{
+            .rasterizationSamples = vk::SampleCountFlagBits::e1,
+            .sampleShadingEnable = vk::False
+        };
+
+        // If using a depth and/or stencil buffer, setup the struct for it. Since we're not, just set to nullptr.
+        vk::PipelineDepthStencilStateCreateInfo depthStencilInfo = {};
+
+        // After frag shader turns color, it needs to combine with color already in the framebuffer.
+        // This is color blending. Either mix the old and new, or combine the old and new using bitwise
+        // We need two structs:
+        // 1) The state contains the configuration per attached framebuffer
+        vk::PipelineColorBlendAttachmentState colorBlendAttachment{
+            .blendEnable = vk::False,
+            .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                              vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA
+        };
+        // 2) Contains global color blending settings
+        vk::PipelineColorBlendStateCreateInfo colorBlendingInfo{
+            .logicOpEnable = vk::False,
+            .logicOp = vk::LogicOp::eCopy,
+            .attachmentCount = 1,
+            .pAttachments = &colorBlendAttachment
+        };
+
+        // A limited amount of data can be changed without recreating the pipeline at draw time, such as viewport size and line width.
+        // So we need to use this dynamic state and keep those properties in it.
+        // With this, you now have to specify this data at draw time.
+        std::vector<vk::DynamicState> dynamicStates = {vk::DynamicState::eViewport, vk::DynamicState::eScissor};
+        vk::PipelineDynamicStateCreateInfo dynamicState{
+            .dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()),
+            .pDynamicStates = dynamicStates.data()
+        };
+
+        // Create final graphics pipeline
+        vk::PipelineLayoutCreateInfo pipelineInfo{
+            .setLayoutCount = 0,
+            .pushConstantRangeCount = 0,
+        };
+        pipelineLayout = vk::raii::PipelineLayout(device, pipelineInfo);
     }
 
     /*
