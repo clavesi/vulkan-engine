@@ -63,8 +63,10 @@ private:
     // Store logical device handle and features
     vk::raii::Device device = nullptr;
     vk::PhysicalDeviceFeatures deviceFeatures; // currently unused. used in later sections
+
     // Store graphics queue family handle
-    vk::raii::Queue graphicsQueue = nullptr;
+    vk::raii::Queue queue = nullptr;
+    uint32_t queueIndex = ~0;
 
     vk::raii::SwapchainKHR swapChain = nullptr;
     std::vector<vk::Image> swapChainImages;
@@ -74,6 +76,9 @@ private:
 
     vk::raii::PipelineLayout pipelineLayout = nullptr;
     vk::raii::Pipeline graphicsPipeline = nullptr;
+    // Manage memory used to store buffers and command buffers allocated from them
+    vk::raii::CommandPool commandPool = nullptr;
+    vk::raii::CommandBuffer commandBuffer = nullptr;
 
     void initWindow() {
         glfwInit();
@@ -95,6 +100,8 @@ private:
         createSwapChain();
         createImageViews();
         createGraphicsPipeline();
+        createCommandPool();
+        createCommandBuffer();
     }
 
     void createInstance() {
@@ -255,10 +262,10 @@ private:
 
 
         // Get the first index into that queue family that supports graphics and present
-        uint32_t queueIndex = ~0;
         for (uint32_t qfpIndex = 0; qfpIndex < queueFamilyProperties.size(); qfpIndex++) {
             if ((queueFamilyProperties[qfpIndex].queueFlags & vk::QueueFlagBits::eGraphics) &&
-                physicalDevice.getSurfaceSupportKHR(qfpIndex, *surface)) {
+                physicalDevice.getSurfaceSupportKHR(qfpIndex, *surface)
+            ) {
                 // found a queue family that supports both graphics and present
                 queueIndex = qfpIndex;
                 break;
@@ -297,7 +304,7 @@ private:
         deviceCreateInfo.ppEnabledExtensionNames = requiredDeviceExtension.data();
 
         device = vk::raii::Device(physicalDevice, deviceCreateInfo);
-        graphicsQueue = vk::raii::Queue(device, queueIndex, 0);
+        queue = vk::raii::Queue(device, queueIndex, 0);
     }
 
     void createSwapChain() {
@@ -467,6 +474,128 @@ private:
             .renderPass = nullptr, // null since we're using dynamic rendering
         };
         graphicsPipeline = vk::raii::Pipeline(device, nullptr, pipelineInfo);
+    }
+
+    void createCommandPool() {
+        vk::CommandPoolCreateInfo commandPoolInfo{
+            .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+            .queueFamilyIndex = queueIndex
+        };
+        commandPool = vk::raii::CommandPool(device, commandPoolInfo);
+    }
+
+    void createCommandBuffer() {
+        vk::CommandBufferAllocateInfo allocInfo{
+            .commandPool = commandPool,
+            .level = vk::CommandBufferLevel::ePrimary,
+            .commandBufferCount = 1
+        };
+        commandBuffer = std::move(vk::raii::CommandBuffers(device, allocInfo).front());
+    }
+
+    // Write commands we want to execute into a command buffer
+    void recordCommandBuffeR(uint32_t imageIndex) {
+        commandBuffer.begin({});
+
+        // Before starting rendering, transition the swapchain image to COLOR_ATTACHMENT_OPTIMAL
+        transition_image_layout(
+            imageIndex,
+            vk::ImageLayout::eUndefined,
+            vk::ImageLayout::eColorAttachmentOptimal,
+            {}, // srcAccessMask (no need to wait for previous operations)
+            vk::AccessFlagBits2::eColorAttachmentWrite,
+            vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+            vk::PipelineStageFlagBits2::eColorAttachmentOutput
+        );
+
+
+        // Set up the color attachment
+        vk::ClearValue clearColor = vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f);
+        vk::RenderingAttachmentInfo attachmentInfo = {
+            .imageView = swapChainImageViews[imageIndex],
+            .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
+            .loadOp = vk::AttachmentLoadOp::eClear,
+            .storeOp = vk::AttachmentStoreOp::eStore,
+            .clearValue = clearColor
+        };
+
+        // Set up the rendering info
+        vk::RenderingInfo renderingInfo = {
+            .renderArea = {.offset = {0, 0}, .extent = swapChainExtent},
+            .layerCount = 1,
+            .colorAttachmentCount = 1,
+            .pColorAttachments = &attachmentInfo
+        };
+
+        // Begin rendering
+        commandBuffer.beginRendering(renderingInfo);
+
+        // Rendering commands will go here
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, graphicsPipeline);
+        commandBuffer.setViewport(
+            0,
+            vk::Viewport(
+                0.0f, 0.0f,
+                static_cast<float>(swapChainExtent.width),
+                static_cast<float>(swapChainExtent.height),
+                0.0f, 1.0f
+            )
+        );
+        commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), swapChainExtent));
+        // Now... DRAW A TRIANGLE!
+        commandBuffer.draw(3, 1, 0, 0);
+
+        // End rendering
+        commandBuffer.endRendering();
+
+        // After rendering, transition the swapchain image to PRESENT_SRC
+        transition_image_layout(
+            imageIndex,
+            vk::ImageLayout::eColorAttachmentOptimal,
+            vk::ImageLayout::ePresentSrcKHR,
+            vk::AccessFlagBits2::eColorAttachmentWrite,
+            {},
+            vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+            vk::PipelineStageFlagBits2::eBottomOfPipe
+        );
+
+        commandBuffer.end();
+    }
+
+    // Transition image layout to one that's suitable for rendering.
+    void transition_image_layout(
+        uint32_t imageIndex,
+        vk::ImageLayout oldLayout,
+        vk::ImageLayout newLayout,
+        vk::AccessFlags2 srcAccessMask,
+        vk::AccessFlags2 dstAccessMask,
+        vk::PipelineStageFlags2 srcStageMask,
+        vk::PipelineStageFlags2 dstStageMask
+    ) {
+        vk::ImageMemoryBarrier2 barrier = {
+            .srcStageMask = srcStageMask,
+            .srcAccessMask = srcAccessMask,
+            .dstStageMask = dstStageMask,
+            .dstAccessMask = dstAccessMask,
+            .oldLayout = oldLayout,
+            .newLayout = newLayout,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = swapChainImages[imageIndex],
+            .subresourceRange = {
+                .aspectMask = vk::ImageAspectFlagBits::eColor,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1
+            }
+        };
+        vk::DependencyInfo dependencyInfo = {
+            .dependencyFlags = {},
+            .imageMemoryBarrierCount = 1,
+            .pImageMemoryBarriers = &barrier
+        };
+        commandBuffer.pipelineBarrier2(dependencyInfo);
     }
 
     /*
