@@ -447,6 +447,7 @@ private:
         };
         pipelineLayout = vk::raii::PipelineLayout(device, pipelineLayoutInfo);
 
+        // To use dynamic rendering, we need to specify the formats of the attachments that will be used.
         vk::PipelineRenderingCreateInfo pipelineRenderingInfo{
             .colorAttachmentCount = 1,
             .pColorAttachmentFormats = &swapChainSurfaceFormat.format
@@ -463,7 +464,7 @@ private:
             .pColorBlendState = &colorBlendingInfo,
             .pDynamicState = &dynamicState,
             .layout = pipelineLayout,
-            .renderPass = nullptr,
+            .renderPass = nullptr, // null since we're using dynamic rendering
         };
         graphicsPipeline = vk::raii::Pipeline(device, nullptr, pipelineInfo);
     }
