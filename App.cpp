@@ -642,6 +642,7 @@ private:
             throw std::runtime_error("failed to wait for fence!");
         }
 
+        // Presentation
         const vk::PresentInfoKHR presentInfoKHR{
             .waitSemaphoreCount = 1,
             .pWaitSemaphores = &*renderFinishedSemaphore,
