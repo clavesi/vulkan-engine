@@ -73,6 +73,7 @@ private:
     std::vector<vk::raii::ImageView> swapChainImageViews;
 
     vk::raii::PipelineLayout pipelineLayout = nullptr;
+    vk::raii::Pipeline graphicsPipeline = nullptr;
 
     void initWindow() {
         glfwInit();
@@ -414,7 +415,7 @@ private:
         vk::PipelineDepthStencilStateCreateInfo depthStencilInfo = {};
 
         // After frag shader turns color, it needs to combine with color already in the framebuffer.
-        // This is color blending. Either mix the old and new, or combine the old and new using bitwise
+        // This is color blending. Either mix the old and new or combine the old and new using bitwise
         // We need two structs:
         // 1) The state contains the configuration per attached framebuffer
         vk::PipelineColorBlendAttachmentState colorBlendAttachment{
@@ -440,11 +441,31 @@ private:
         };
 
         // Create final graphics pipeline
-        vk::PipelineLayoutCreateInfo pipelineInfo{
+        vk::PipelineLayoutCreateInfo pipelineLayoutInfo{
             .setLayoutCount = 0,
             .pushConstantRangeCount = 0,
         };
-        pipelineLayout = vk::raii::PipelineLayout(device, pipelineInfo);
+        pipelineLayout = vk::raii::PipelineLayout(device, pipelineLayoutInfo);
+
+        vk::PipelineRenderingCreateInfo pipelineRenderingInfo{
+            .colorAttachmentCount = 1,
+            .pColorAttachmentFormats = &swapChainSurfaceFormat.format
+        };
+        vk::GraphicsPipelineCreateInfo pipelineInfo{
+            .pNext = &pipelineRenderingInfo,
+            .stageCount = 2,
+            .pStages = shaderStages,
+            .pVertexInputState = &vertexInputInfo,
+            .pInputAssemblyState = &inputAssemblyInfo,
+            .pViewportState = &viewportInfo,
+            .pRasterizationState = &rasterizerInfo,
+            .pMultisampleState = &multisamplingInfo,
+            .pColorBlendState = &colorBlendingInfo,
+            .pDynamicState = &dynamicState,
+            .layout = pipelineLayout,
+            .renderPass = nullptr,
+        };
+        graphicsPipeline = vk::raii::Pipeline(device, nullptr, pipelineInfo);
     }
 
     /*
@@ -514,7 +535,7 @@ private:
 
     /*
     Determine the correct swap extend (resolution of images in swap chain)
-    Typically this resolution is the same as the window, but some window managers allow you to set them separately.
+    Typically, this resolution is the same as the window, but some window managers allow you to set them separately.
    */
     vk::Extent2D chooseSwapExtent(vk::SurfaceCapabilitiesKHR const &capabilities) const {
         if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
