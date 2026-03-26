@@ -80,6 +80,10 @@ private:
     vk::raii::CommandPool commandPool = nullptr;
     vk::raii::CommandBuffer commandBuffer = nullptr;
 
+    vk::raii::Semaphore presentCompleteSemaphore = nullptr;
+    vk::raii::Semaphore renderFinishedSemaphore = nullptr;
+    vk::raii::Fence drawFence = nullptr;
+
     void initWindow() {
         glfwInit();
 
@@ -102,6 +106,22 @@ private:
         createGraphicsPipeline();
         createCommandPool();
         createCommandBuffer();
+        createSyncObjects();
+    }
+
+    void mainLoop() {
+        while (!glfwWindowShouldClose(window)) {
+            glfwPollEvents();
+            drawFrame();
+        }
+
+        device.waitIdle(); // wait for device to finish operations before destroying resources
+    }
+
+    void cleanup() const {
+        glfwDestroyWindow(window);
+
+        glfwTerminate();
     }
 
     void createInstance() {
@@ -160,18 +180,6 @@ private:
 
         // Create instance
         instance = vk::raii::Instance(context, createInfo);
-    }
-
-    void mainLoop() const {
-        while (!glfwWindowShouldClose(window)) {
-            glfwPollEvents();
-        }
-    }
-
-    void cleanup() const {
-        glfwDestroyWindow(window);
-
-        glfwTerminate();
     }
 
     void setupDebugMessenger() {
@@ -238,6 +246,7 @@ private:
                     vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
         bool supportsRequiredFeatures = features.get<vk::PhysicalDeviceVulkan11Features>().shaderDrawParameters &&
                                         features.get<vk::PhysicalDeviceVulkan13Features>().dynamicRendering &&
+                                        features.get<vk::PhysicalDeviceVulkan13Features>().synchronization2 &&
                                         features.get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>().
                                         extendedDynamicState;
 
@@ -287,6 +296,8 @@ private:
         featureChain.get<vk::PhysicalDeviceVulkan11Features>().shaderDrawParameters = VK_TRUE;
         // Enable dynamic rendering from Vulkan 1.3
         featureChain.get<vk::PhysicalDeviceVulkan13Features>().dynamicRendering = VK_TRUE;
+        // Enable synchronization2 for vkCmdPipelineBarrier2 and related APIs
+        featureChain.get<vk::PhysicalDeviceVulkan13Features>().synchronization2 = VK_TRUE;
         // Enable extended dynamic state from the extension
         featureChain.get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>().extendedDynamicState = VK_TRUE;
 
@@ -494,7 +505,7 @@ private:
     }
 
     // Write commands we want to execute into a command buffer
-    void recordCommandBuffeR(uint32_t imageIndex) {
+    void recordCommandBuffer(uint32_t imageIndex) {
         commandBuffer.begin({});
 
         // Before starting rendering, transition the swapchain image to COLOR_ATTACHMENT_OPTIMAL
@@ -596,6 +607,58 @@ private:
             .pImageMemoryBarriers = &barrier
         };
         commandBuffer.pipelineBarrier2(dependencyInfo);
+    }
+
+    // Create semaphores to sync rendering
+    void createSyncObjects() {
+        presentCompleteSemaphore = vk::raii::Semaphore(device, vk::SemaphoreCreateInfo{});
+        renderFinishedSemaphore = vk::raii::Semaphore(device, vk::SemaphoreCreateInfo{});
+        drawFence = vk::raii::Fence(device, vk::FenceCreateInfo{.flags = vk::FenceCreateFlagBits::eSignaled});
+    }
+
+    void drawFrame() {
+        auto fenceResult = device.waitForFences(*drawFence, vk::True, UINT64_MAX);
+
+        // grab image from framebuffer after previous frame has finished
+        // timeout essentially never (uint64 max)
+        auto [result, imageIndex] = swapChain.acquireNextImage(UINT64_MAX, *presentCompleteSemaphore, nullptr);
+        recordCommandBuffer(imageIndex);
+
+        device.resetFences(*drawFence);
+        // Submit command buffer
+        vk::PipelineStageFlags waitDestinationStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
+        const vk::SubmitInfo submitInfo{
+            .waitSemaphoreCount = 1,
+            .pWaitSemaphores = &*presentCompleteSemaphore,
+            .pWaitDstStageMask = &waitDestinationStageMask,
+            .commandBufferCount = 1,
+            .pCommandBuffers = &*commandBuffer,
+            .signalSemaphoreCount = 1,
+            .pSignalSemaphores = &*renderFinishedSemaphore
+        };
+        queue.submit(submitInfo, *drawFence);
+        result = device.waitForFences(*drawFence, vk::True, UINT64_MAX);
+        if (result != vk::Result::eSuccess) {
+            throw std::runtime_error("failed to wait for fence!");
+        }
+
+        const vk::PresentInfoKHR presentInfoKHR{
+            .waitSemaphoreCount = 1,
+            .pWaitSemaphores = &*renderFinishedSemaphore,
+            .swapchainCount = 1,
+            .pSwapchains = &*swapChain,
+            .pImageIndices = &imageIndex
+        };
+        result = queue.presentKHR(presentInfoKHR);
+        switch (result) {
+            case vk::Result::eSuccess:
+                break;
+            case vk::Result::eSuboptimalKHR:
+                std::cout << "vk::Queue::presentKHR returned vk::Result::eSuboptimalKHR !\n";
+                break;
+            default:
+                break; // an unexpected result is returned!
+        }
     }
 
     /*
