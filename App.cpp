@@ -90,6 +90,8 @@ private:
     std::vector<vk::raii::Fence> inFlightFences;
     uint32_t frameIndex = 0;
 
+    bool framebufferResized = false;
+
     void initWindow() {
         glfwInit();
 
@@ -97,6 +99,13 @@ private:
         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
         window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
+        glfwSetWindowUserPointer(window, this);
+        glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+    }
+
+    static void framebufferResizeCallback(GLFWwindow *window, int width, int height) {
+        auto app = reinterpret_cast<HelloTriangleApplication *>(glfwGetWindowUserPointer(window));
+        app->framebufferResized = true;
     }
 
     void initVulkan() {
@@ -124,10 +133,34 @@ private:
         device.waitIdle(); // wait for device to finish operations before destroying resources
     }
 
+    void cleanupSwapChain() {
+        swapChainImageViews.clear();
+        swapChain = nullptr;
+    }
+
     void cleanup() const {
         glfwDestroyWindow(window);
 
         glfwTerminate();
+    }
+
+    // Recreate the swapchain. Useful for things like the window is resized or minimized.
+    void recreateSwapChain() {
+        // window is minimized
+        int width = 0, height = 0;
+        glfwGetFramebufferSize(window, &width, &height);
+        while (width == 0 || height == 0) {
+            glfwGetFramebufferSize(window, &width, &height);
+            glfwWaitEvents();
+        }
+
+        // don't touch resources that may still be in use
+        device.waitIdle();
+
+        cleanupSwapChain();
+        createSwapChain();
+        // need to recreate image views since they're based on the swap chain images
+        createImageViews();
     }
 
     void createInstance() {
@@ -632,16 +665,35 @@ private:
     }
 
     void drawFrame() {
+        // Note: inFlightFences, presentCompleteSemaphores, and commandBuffers are indexed by frameIndex,
+        //       while renderFinishedSemaphores is indexed by imageIndex
         auto fenceResult = device.waitForFences(*inFlightFences[frameIndex], vk::True, UINT64_MAX);
         if (fenceResult != vk::Result::eSuccess) {
             throw std::runtime_error("failed to wait for fence!");
         }
-        device.resetFences(*inFlightFences[frameIndex]);
 
         // grab image from framebuffer after previous frame has finished
         // timeout essentially never (uint64 max)
         auto [result, imageIndex] = swapChain.acquireNextImage(
             UINT64_MAX, *presentCompleteSemaphores[frameIndex], nullptr);
+
+        // Due to VULKAN_HPP_HANDLE_ERROR_OUT_OF_DATE_AS_SUCCESS being defined, eErrorOutOfDateKHR can be checked as a result
+        // here and does not need to be caught by an exception.
+        if (result == vk::Result::eErrorOutOfDateKHR) {
+            recreateSwapChain();
+            return;
+        }
+        // On other success codes than eSuccess and eSuboptimalKHR we just throw an exception.
+        // On any error code, aquireNextImage already threw an exception.
+        else if (result != vk::Result::eSuccess && result != vk::Result::eSuboptimalKHR) {
+            assert(result == vk::Result::eTimeout || result == vk::Result::eNotReady);
+            throw std::runtime_error("failed to acquire swap chain image!");
+        }
+
+        // Only reset the fence if we are submitting work
+        device.resetFences(*inFlightFences[frameIndex]);
+
+        commandBuffers[frameIndex].reset();
         recordCommandBuffer(imageIndex);
 
         // Submit command buffer
@@ -666,14 +718,17 @@ private:
             .pImageIndices = &imageIndex
         };
         result = queue.presentKHR(presentInfoKHR);
-        switch (result) {
-            case vk::Result::eSuccess:
-                break;
-            case vk::Result::eSuboptimalKHR:
-                std::cout << "vk::Queue::presentKHR returned vk::Result::eSuboptimalKHR !\n";
-                break;
-            default:
-                break; // an unexpected result is returned!
+        // Due to VULKAN_HPP_HANDLE_ERROR_OUT_OF_DATE_AS_SUCCESS being defined, eErrorOutOfDateKHR can be checked as a result
+        // here and does not need to be caught by an exception.
+        if (
+            (result == vk::Result::eSuboptimalKHR) || (result == vk::Result::eErrorOutOfDateKHR)
+            || framebufferResized
+        ) {
+            framebufferResized = false;
+            recreateSwapChain();
+        } else {
+            // There are no other success codes than eSuccess; on any error code, presentKHR already threw an exception.
+            assert(result == vk::Result::eSuccess);
         }
 
         frameIndex = (frameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
