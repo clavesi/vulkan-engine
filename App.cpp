@@ -20,6 +20,11 @@ import vulkan_hpp;
 constexpr uint32_t WIDTH = 800;
 constexpr uint32_t HEIGHT = 600;
 
+// Allows the rendering of one frame to not interfere with the recording of the next.
+// Essentially, CPU and GPU work separately and with a value of 2. If the CPU finishes early, it waits for the GPU to finish rendering.
+// With more, the CPU might get ahead of the GPU, adding frames of latency.
+constexpr int MAX_FRAMES_IN_FLIGHT = 2;
+
 // What validation layers
 const std::vector<char const *> validationLayers = {
     "VK_LAYER_KHRONOS_validation"
@@ -78,11 +83,12 @@ private:
     vk::raii::Pipeline graphicsPipeline = nullptr;
     // Manage memory used to store buffers and command buffers allocated from them
     vk::raii::CommandPool commandPool = nullptr;
-    vk::raii::CommandBuffer commandBuffer = nullptr;
+    std::vector<vk::raii::CommandBuffer> commandBuffers;
 
-    vk::raii::Semaphore presentCompleteSemaphore = nullptr;
-    vk::raii::Semaphore renderFinishedSemaphore = nullptr;
-    vk::raii::Fence drawFence = nullptr;
+    std::vector<vk::raii::Semaphore> presentCompleteSemaphores;
+    std::vector<vk::raii::Semaphore> renderFinishedSemaphores;
+    std::vector<vk::raii::Fence> inFlightFences;
+    uint32_t frameIndex = 0;
 
     void initWindow() {
         glfwInit();
@@ -105,7 +111,7 @@ private:
         createImageViews();
         createGraphicsPipeline();
         createCommandPool();
-        createCommandBuffer();
+        createCommandBuffers();
         createSyncObjects();
     }
 
@@ -495,17 +501,19 @@ private:
         commandPool = vk::raii::CommandPool(device, commandPoolInfo);
     }
 
-    void createCommandBuffer() {
+    void createCommandBuffers() {
+        commandBuffers.clear();
         vk::CommandBufferAllocateInfo allocInfo{
             .commandPool = commandPool,
             .level = vk::CommandBufferLevel::ePrimary,
-            .commandBufferCount = 1
+            .commandBufferCount = MAX_FRAMES_IN_FLIGHT
         };
-        commandBuffer = std::move(vk::raii::CommandBuffers(device, allocInfo).front());
+        commandBuffers = vk::raii::CommandBuffers(device, allocInfo);
     }
 
     // Write commands we want to execute into a command buffer
     void recordCommandBuffer(uint32_t imageIndex) {
+        auto &commandBuffer = commandBuffers[frameIndex];
         commandBuffer.begin({});
 
         // Before starting rendering, transition the swapchain image to COLOR_ATTACHMENT_OPTIMAL
@@ -606,46 +614,53 @@ private:
             .imageMemoryBarrierCount = 1,
             .pImageMemoryBarriers = &barrier
         };
-        commandBuffer.pipelineBarrier2(dependencyInfo);
+        commandBuffers[frameIndex].pipelineBarrier2(dependencyInfo);
     }
 
-    // Create semaphores to sync rendering
+    // Create all semaphores to sync rendering
     void createSyncObjects() {
-        presentCompleteSemaphore = vk::raii::Semaphore(device, vk::SemaphoreCreateInfo{});
-        renderFinishedSemaphore = vk::raii::Semaphore(device, vk::SemaphoreCreateInfo{});
-        drawFence = vk::raii::Fence(device, vk::FenceCreateInfo{.flags = vk::FenceCreateFlagBits::eSignaled});
+        assert(presentCompleteSemaphores.empty() && renderFinishedSemaphores.empty() && inFlightFences.empty());
+
+        for (size_t i = 0; i < swapChainImages.size(); i++) {
+            renderFinishedSemaphores.emplace_back(device, vk::SemaphoreCreateInfo{});
+        }
+
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            presentCompleteSemaphores.emplace_back(device, vk::SemaphoreCreateInfo{});
+            inFlightFences.emplace_back(device, vk::FenceCreateInfo{.flags = vk::FenceCreateFlagBits::eSignaled});
+        }
     }
 
     void drawFrame() {
-        auto fenceResult = device.waitForFences(*drawFence, vk::True, UINT64_MAX);
+        auto fenceResult = device.waitForFences(*inFlightFences[frameIndex], vk::True, UINT64_MAX);
+        if (fenceResult != vk::Result::eSuccess) {
+            throw std::runtime_error("failed to wait for fence!");
+        }
+        device.resetFences(*inFlightFences[frameIndex]);
 
         // grab image from framebuffer after previous frame has finished
         // timeout essentially never (uint64 max)
-        auto [result, imageIndex] = swapChain.acquireNextImage(UINT64_MAX, *presentCompleteSemaphore, nullptr);
+        auto [result, imageIndex] = swapChain.acquireNextImage(
+            UINT64_MAX, *presentCompleteSemaphores[frameIndex], nullptr);
         recordCommandBuffer(imageIndex);
 
-        device.resetFences(*drawFence);
         // Submit command buffer
         vk::PipelineStageFlags waitDestinationStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
         const vk::SubmitInfo submitInfo{
             .waitSemaphoreCount = 1,
-            .pWaitSemaphores = &*presentCompleteSemaphore,
+            .pWaitSemaphores = &*presentCompleteSemaphores[frameIndex],
             .pWaitDstStageMask = &waitDestinationStageMask,
             .commandBufferCount = 1,
-            .pCommandBuffers = &*commandBuffer,
+            .pCommandBuffers = &*commandBuffers[frameIndex],
             .signalSemaphoreCount = 1,
-            .pSignalSemaphores = &*renderFinishedSemaphore
+            .pSignalSemaphores = &*renderFinishedSemaphores[imageIndex]
         };
-        queue.submit(submitInfo, *drawFence);
-        result = device.waitForFences(*drawFence, vk::True, UINT64_MAX);
-        if (result != vk::Result::eSuccess) {
-            throw std::runtime_error("failed to wait for fence!");
-        }
+        queue.submit(submitInfo, *inFlightFences[frameIndex]);
 
         // Presentation
         const vk::PresentInfoKHR presentInfoKHR{
             .waitSemaphoreCount = 1,
-            .pWaitSemaphores = &*renderFinishedSemaphore,
+            .pWaitSemaphores = &*renderFinishedSemaphores[imageIndex],
             .swapchainCount = 1,
             .pSwapchains = &*swapChain,
             .pImageIndices = &imageIndex
@@ -660,6 +675,8 @@ private:
             default:
                 break; // an unexpected result is returned!
         }
+
+        frameIndex = (frameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
     }
 
     /*
