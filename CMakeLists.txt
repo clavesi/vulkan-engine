@@ -84,8 +84,19 @@ else()
   add_custom_target(shaders)
 endif()
 
-# Minimal executable
-add_executable(vulkan_tutorial_app App.cpp)
+# Executable
+add_executable(vulkan_tutorial_app
+        src/main.cpp
+        src/io/FileIO.cpp
+        src/core/Engine.cpp
+        src/core/Window.cpp
+        src/vk/Instance.cpp
+        src/vk/Device.cpp
+        src/vk/SwapChain.cpp
+        src/vk/Pipeline.cpp
+        src/vk/Renderer.cpp
+)
+target_include_directories(vulkan_tutorial_app PRIVATE src)
 add_dependencies(vulkan_tutorial_app shaders)
 
 # Link Vulkan first

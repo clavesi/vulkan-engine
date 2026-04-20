@@ -1,0 +1,42 @@
+#pragma once
+
+#include <vulkan/vulkan_raii.hpp>
+
+class Instance; // forward declare
+
+class Device {
+public:
+    Device(const Instance &instance, const vk::raii::SurfaceKHR &surface);
+
+    Device(const Device &) = delete;
+    Device &operator=(const Device &) = delete;
+
+    [[nodiscard]] const vk::raii::PhysicalDevice &physical() const { return physicalDevice; }
+    [[nodiscard]] const vk::raii::Device &logical() const { return device; }
+    [[nodiscard]] const vk::raii::Queue &graphicsQueue() const { return queue; }
+    [[nodiscard]] uint32_t queueFamilyIndex() const { return queueIndex; }
+
+    void waitIdle() const { device.waitIdle(); }
+
+private:
+    [[nodiscard]] bool isDeviceSuitable(
+        const vk::raii::PhysicalDevice &candidate,
+        const vk::raii::SurfaceKHR &surf
+    ) const;
+
+    void pickPhysicalDevice(
+        const vk::raii::Instance &inst,
+        const vk::raii::SurfaceKHR &surf
+    );
+    void createLogicalDevice();
+
+
+    // Store graphics card
+    vk::raii::PhysicalDevice physicalDevice = nullptr;
+    // Store logical device handle and features
+    vk::raii::Device device = nullptr;
+    vk::PhysicalDeviceFeatures deviceFeatures; // currently unused. used in later sections
+    // Store graphics queue family handle
+    vk::raii::Queue queue = nullptr;
+    uint32_t queueIndex = ~0u;
+};
