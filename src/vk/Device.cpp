@@ -9,12 +9,26 @@ namespace {
     };
 } // namespace
 
-Device::Device(const Instance &instance, const vk::raii::SurfaceKHR& surface) {
+Device::Device(const Instance &instance, const vk::raii::SurfaceKHR &surface) {
     pickPhysicalDevice(instance.get(), surface);
     createLogicalDevice();
 
     // Load device-level function pointers for faster dispatch
     VULKAN_HPP_DEFAULT_DISPATCHER.init(*device);
+}
+
+// Graphics card can offer different types of memory to allocate from.
+// Combining requirements of the buffer and our app's requirements, we find the right type of memory to use.
+uint32_t Device::findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties) const {
+    // Get device's types of memories
+    const auto memPropertiess = physicalDevice.getMemoryProperties();
+    // Find suitable memory
+    for (uint32_t i = 0; i < memPropertiess.memoryTypeCount; i++) {
+        if ((typeFilter & (1 << i)) && (memPropertiess.memoryTypes[i].propertyFlags & properties) == properties) {
+            return i;
+        }
+    }
+    throw std::runtime_error("failed to find suitable memory type!");
 }
 
 bool Device::isDeviceSuitable(

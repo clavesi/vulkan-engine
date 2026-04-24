@@ -94,6 +94,7 @@ add_executable(vulkan_tutorial_app
         src/vk/Device.cpp
         src/vk/SwapChain.cpp
         src/vk/Pipeline.cpp
+        src/vk/Buffer.cpp
         src/vk/Renderer.cpp
 )
 target_include_directories(vulkan_tutorial_app PRIVATE src)

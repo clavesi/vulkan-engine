@@ -2,9 +2,54 @@
 #include "Device.h"
 #include "SwapChain.h"
 #include "Pipeline.h"
+#include "core/Vertex.h"
 
 #include <cassert>
 #include <stdexcept>
+
+
+namespace {
+    // RGB
+    // const std::vector<Vertex> vertices = {
+    //     {{0.0f, -0.5f}, {1.0f, 0.0f, 1.0f}},
+    //     {{0.5f, 0.5f}, {1.0f, 1.0f, 0.0f}},
+    //     {{-0.5f, 0.5f}, {0.0f, 1.0f, 1.0f}}
+    // };
+
+    // RGB but like, with a white tip, WGB?
+    // const std::vector<Vertex> vertices = {
+    //     {{0.0f, -0.5f}, {1.0f, 1.0f, 1.0f}},
+    //     {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+    //     {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+    // };
+
+    // CMY(K)
+    const std::vector<Vertex> vertices = {
+        {{0.0f, -0.5f}, {0.0f, .784f, .784f}},
+        {{0.5f, 0.5f}, {.784f, 0.0f, .784f}},
+        {{-0.5f, 0.5f}, {.784f, .784f, 0.0f}}
+    };
+}
+
+Renderer::Renderer(const Device &device, SwapChain &swapChain, const Pipeline &pipeline)
+    : device(device),
+      swapChain(swapChain),
+      pipeline(pipeline),
+      vertexBuffer(
+          device,
+          sizeof(vertices[0]) * vertices.size(),
+          vk::BufferUsageFlagBits::eVertexBuffer,
+          vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent),
+      vertexCount(static_cast<uint32_t>(vertices.size())) {
+    vertexBuffer.uploadData(
+        vertices.data(),
+        sizeof(vertices[0]) * vertices.size()
+    );
+
+    createCommandPool();
+    createCommandBuffers();
+    createSyncObjects();
+}
 
 void Renderer::drawFrame(bool externalResize) {
     // Note: inFlightFences, presentCompleteSemaphores, and commandBuffers are indexed by frameIndex,
@@ -79,13 +124,6 @@ void Renderer::drawFrame(bool externalResize) {
     }
 
     frameIndex = (frameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
-}
-
-Renderer::Renderer(const Device &device, SwapChain &swapChain, const Pipeline &pipeline)
-    : device(device), swapChain(swapChain), pipeline(pipeline) {
-    createCommandPool();
-    createCommandBuffers();
-    createSyncObjects();
 }
 
 void Renderer::createCommandPool() {
@@ -204,6 +242,10 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex) {
     // Rendering commands will go here
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline.handle());
 
+    // NEW: bind the vertex buffer at binding 0 with offset 0
+    vk::DeviceSize offset = 0;
+    commandBuffer.bindVertexBuffers(0, *vertexBuffer.handle(), offset);
+
     const auto extent = swapChain.extent();
     commandBuffer.setViewport(
         0,
@@ -215,8 +257,9 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex) {
         )
     );
     commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), extent));
-    // Now... DRAW A TRIANGLE!
-    commandBuffer.draw(3, 1, 0, 0);
+
+    // Read the count from the buffer.
+    commandBuffer.draw(vertexCount, 1, 0, 0);
 
     // End rendering
     commandBuffer.endRendering();

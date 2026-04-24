@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Buffer.h"
+
 #include <vulkan/vulkan_raii.hpp>
 
 #include <vector>
@@ -14,6 +16,7 @@ public:
     Renderer(const Device &device, SwapChain &swapChain, const Pipeline &pipeline);
 
     Renderer(const Renderer &) = delete;
+
     Renderer &operator=(const Renderer &) = delete;
 
     // Renders one frame. Handles swapchain recreation on out-of-date.
@@ -50,4 +53,7 @@ private:
     std::vector<vk::raii::Semaphore> renderFinishedSemaphores;
     std::vector<vk::raii::Fence> inFlightFences;
     uint32_t frameIndex = 0;
+
+    Buffer vertexBuffer;
+    uint32_t vertexCount = 0;
 };

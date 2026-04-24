@@ -18,6 +18,8 @@ public:
 
     void waitIdle() const { device.waitIdle(); }
 
+    [[nodiscard]] uint32_t findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties) const;
+
 private:
     [[nodiscard]] bool isDeviceSuitable(
         const vk::raii::PhysicalDevice &candidate,
