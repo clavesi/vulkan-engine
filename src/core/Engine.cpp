@@ -5,7 +5,21 @@
 #include <fstream>
 
 #define GLFW_INCLUDE_VULKAN
+#include "Vertex.h"
+
 #include <GLFW/glfw3.h>
+
+namespace {
+    PipelineSpec makeMainPipelineSpec(const std::string &shaderPath, vk::Format colorFormat) {
+        const auto attrs = Vertex::getAttributeDescriptions();
+        return PipelineSpec{
+            .shaderPath = shaderPath,
+            .colorFormat = colorFormat,
+            .bindingDescription = Vertex::getBindingDescription(),
+            .attributeDescriptions = {attrs.begin(), attrs.end()}
+        };
+    }
+} // namespace
 
 Engine::Engine(EngineConfig cfg)
     : config(std::move(cfg)),
@@ -14,7 +28,7 @@ Engine::Engine(EngineConfig cfg)
       surface(window.createSurface(instance.get())),
       device(instance, surface),
       swapChain(device, window, surface),
-      pipeline(device, "shaders/shader.spv", swapChain.format()),
+      pipeline(device, makeMainPipelineSpec(config.shaderPath, swapChain.format())),
       renderer(device, swapChain, pipeline) {
 }
 

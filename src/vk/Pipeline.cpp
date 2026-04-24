@@ -2,9 +2,9 @@
 #include "Device.h"
 #include "io/FileIO.h"
 
-Pipeline::Pipeline(const Device &device, const std::string &shaderPath, vk::Format colorFormat) {
+Pipeline::Pipeline(const Device &device, const PipelineSpec &spec) {
     // Create a shader module - just thin wrappers around the shader bytecode.
-    const auto code = io::readBinaryFile(shaderPath);
+    const auto code = io::readBinaryFile(spec.shaderPath);
     auto shaderModule = createShaderModule(device.logical(), code);
 
     // Assign shaders to a specific pipeline stage
@@ -20,8 +20,15 @@ Pipeline::Pipeline(const Device &device, const std::string &shaderPath, vk::Form
     };
     vk::PipelineShaderStageCreateInfo shaderStages[] = {vertStage, fragStage};
 
+
     // This struct describes the format of the vertex data to be passed to the vert shader
-    vk::PipelineVertexInputStateCreateInfo vertexInput{};
+    // Vertex input comes from spec
+    vk::PipelineVertexInputStateCreateInfo vertexInput{
+        .vertexBindingDescriptionCount = 1,
+        .pVertexBindingDescriptions = &spec.bindingDescription,
+        .vertexAttributeDescriptionCount = static_cast<uint32_t>(spec.attributeDescriptions.size()),
+        .pVertexAttributeDescriptions = spec.attributeDescriptions.data()
+    };
 
     // This struct describes what kind of geometry will be drawn from the vertices and if primitive restart should be enabled.
     vk::PipelineInputAssemblyStateCreateInfo inputAssembly{
@@ -101,7 +108,7 @@ Pipeline::Pipeline(const Device &device, const std::string &shaderPath, vk::Form
     // To use dynamic rendering, we need to specify the formats of the attachments that will be used.
     vk::PipelineRenderingCreateInfo renderingInfo{
         .colorAttachmentCount = 1,
-        .pColorAttachmentFormats = &colorFormat
+        .pColorAttachmentFormats = &spec.colorFormat
     };
 
     vk::GraphicsPipelineCreateInfo pipelineInfo{
