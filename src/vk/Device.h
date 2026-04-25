@@ -9,6 +9,7 @@ public:
     Device(const Instance &instance, const vk::raii::SurfaceKHR &surface);
 
     Device(const Device &) = delete;
+
     Device &operator=(const Device &) = delete;
 
     [[nodiscard]] const vk::raii::PhysicalDevice &physical() const { return physicalDevice; }
@@ -19,6 +20,8 @@ public:
     void waitIdle() const { device.waitIdle(); }
 
     [[nodiscard]] uint32_t findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties) const;
+    // Submit a one-time copy command between two buffers
+    void copyBuffer(const vk::raii::Buffer &src, const vk::raii::Buffer &dst, vk::DeviceSize size) const;
 
 private:
     [[nodiscard]] bool isDeviceSuitable(
@@ -32,6 +35,7 @@ private:
     );
     void createLogicalDevice();
 
+    void createTransientCommandPool();
 
     // Store graphics card
     vk::raii::PhysicalDevice physicalDevice = nullptr;
@@ -41,4 +45,7 @@ private:
     // Store graphics queue family handle
     vk::raii::Queue queue = nullptr;
     uint32_t queueIndex = ~0u;
+
+    // Pool for short-lived command buffers like one-time staging transfers
+    vk::raii::CommandPool transientPool = nullptr;
 };

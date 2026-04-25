@@ -35,13 +35,16 @@ Renderer::Renderer(const Device &device, SwapChain &swapChain, const Pipeline &p
     : device(device),
       swapChain(swapChain),
       pipeline(pipeline),
+      // Vertex buffer now lives in fast device-local memory.
+      // eTransferDst is required because we'll copy into it from a staging buffer.
       vertexBuffer(
           device,
           sizeof(vertices[0]) * vertices.size(),
-          vk::BufferUsageFlagBits::eVertexBuffer,
-          vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent),
+          vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst,
+          vk::MemoryPropertyFlagBits::eDeviceLocal),
       vertexCount(static_cast<uint32_t>(vertices.size())) {
-    vertexBuffer.uploadData(
+    // Device-local memory isn't CPU-mappable, so go through a staging buffer
+    vertexBuffer.uploadViaStaging(
         vertices.data(),
         sizeof(vertices[0]) * vertices.size()
     );

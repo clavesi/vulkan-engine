@@ -12,6 +12,7 @@ namespace {
 Device::Device(const Instance &instance, const vk::raii::SurfaceKHR &surface) {
     pickPhysicalDevice(instance.get(), surface);
     createLogicalDevice();
+    createTransientCommandPool();
 
     // Load device-level function pointers for faster dispatch
     VULKAN_HPP_DEFAULT_DISPATCHER.init(*device);
@@ -29,6 +30,33 @@ uint32_t Device::findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags pro
         }
     }
     throw std::runtime_error("failed to find suitable memory type!");
+}
+
+void Device::copyBuffer(const vk::raii::Buffer &src, const vk::raii::Buffer &dst, vk::DeviceSize size) const {
+    // Allocate a single-use command buffer from the transient pool
+    vk::CommandBufferAllocateInfo allocInfo{
+        .commandPool = transientPool,
+        .level = vk::CommandBufferLevel::ePrimary,
+        .commandBufferCount = 1
+    };
+    const auto cmdBuffers = vk::raii::CommandBuffers(device, allocInfo);
+    const auto &cmd = cmdBuffers.front();
+
+    // Tell the driver this buffer is recorded once and submitted once
+    cmd.begin(vk::CommandBufferBeginInfo{
+        .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit
+    });
+    cmd.copyBuffer(src, dst, vk::BufferCopy{0, 0, size});
+    cmd.end();
+
+    // Submit and block until the copy finishes (no fences needed for a one-shot)
+    queue.submit(
+        vk::SubmitInfo{
+            .commandBufferCount = 1,
+            .pCommandBuffers = &*cmd
+        }, nullptr
+    );
+    queue.waitIdle();
 }
 
 bool Device::isDeviceSuitable(
@@ -151,4 +179,13 @@ void Device::createLogicalDevice() {
 
     device = vk::raii::Device(physicalDevice, deviceCreateInfo);
     queue = vk::raii::Queue(device, queueIndex, 0);
+}
+
+// eTransient hints to the driver that command buffers from this pool are short-lived
+void Device::createTransientCommandPool() {
+    vk::CommandPoolCreateInfo info{
+        .flags = vk::CommandPoolCreateFlagBits::eTransient,
+        .queueFamilyIndex = queueIndex
+    };
+    transientPool = vk::raii::CommandPool(device, info);
 }

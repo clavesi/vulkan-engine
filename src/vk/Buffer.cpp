@@ -43,3 +43,24 @@ void Buffer::uploadData(const void *src, vk::DeviceSize size) {
     // This is dealt with by either flushing,
     // or what we do, using MemoryPropertyFlagBits::eHostCoherent (Renderer & findMemoryType())
 }
+
+void Buffer::uploadViaStaging(const void *src, vk::DeviceSize size) {
+    if (size > bufferSize) {
+        throw std::runtime_error("Upload exceeds buffer size!");
+    }
+
+    // Temporary CPU-visible buffer we can map and write into
+    Buffer staging(
+        device,
+        size,
+        vk::BufferUsageFlagBits::eTransferSrc,
+        vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+    );
+
+    staging.uploadData(src, size);
+
+    // GPU-side copy from staging into this buffer's device-local memory
+    device.copyBuffer(staging.handle(), buffer, size);
+
+    // staging is destroyed here when the scope ends
+}

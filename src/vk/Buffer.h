@@ -14,6 +14,9 @@ public:
 
     // Copies bytes from src into the buffer. Requires buffer's memory to be host-visible
     void uploadData(const void *src, vk::DeviceSize size);
+    // Upload to a device-local buffer by going through a temporary host-visible
+    // staging buffer. Use when this buffer's memory is not CPU-mappable.
+    void uploadViaStaging(const void *src, vk::DeviceSize size);
 
     [[nodiscard]] const vk::raii::Buffer &handle() const { return buffer; }
     [[nodiscard]] vk::DeviceSize size() const { return bufferSize; }
