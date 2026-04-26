@@ -55,5 +55,7 @@ private:
     uint32_t frameIndex = 0;
 
     Buffer vertexBuffer;
-    uint32_t vertexCount = 0;
+    // uint32_t vertexCount = 0; // currently unused
+    Buffer indexBuffer;
+    uint32_t indexCount = 0;
 };
