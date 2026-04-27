@@ -1,11 +1,11 @@
 #pragma once
 
 #include "Buffer.h"
+#include "../core/UniformBufferObject.h"
 
 #include <vulkan/vulkan_raii.hpp>
 
 #include <vector>
-#include <cstdint>
 
 class Device;
 class SwapChain;
@@ -16,7 +16,6 @@ public:
     Renderer(const Device &device, SwapChain &swapChain, const Pipeline &pipeline);
 
     Renderer(const Renderer &) = delete;
-
     Renderer &operator=(const Renderer &) = delete;
 
     // Renders one frame. Handles swapchain recreation on out-of-date.
@@ -41,6 +40,8 @@ private:
     );
     void recordCommandBuffer(uint32_t imageIndex);
 
+    void updateUniformBuffer(uint32_t frameIdx);
+
     const Device &device;
     SwapChain &swapChain; // non-const because drawFrame may trigger recreate()
     const Pipeline &pipeline;
@@ -53,6 +54,11 @@ private:
     std::vector<vk::raii::Semaphore> renderFinishedSemaphores;
     std::vector<vk::raii::Fence> inFlightFences;
     uint32_t frameIndex = 0;
+
+    // One uniform buffer per frame in flight so the CPU can write
+    // the next frame's data without disturbing what the GPU is currently reading
+    std::vector<Buffer> uniformBuffers;
+    std::vector<void *> uniformBuffersMapped;
 
     Buffer vertexBuffer;
     // uint32_t vertexCount = 0; // currently unused

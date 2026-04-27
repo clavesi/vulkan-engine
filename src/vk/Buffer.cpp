@@ -64,3 +64,11 @@ void Buffer::uploadViaStaging(const void *src, vk::DeviceSize size) {
 
     // staging is destroyed here when the scope ends
 }
+
+void *Buffer::mapPersistent() {
+    // Only map once; subsequent calls return the existing pointer
+    if (!persistentMap) {
+        persistentMap = memory.mapMemory(0, bufferSize);
+    }
+    return persistentMap;
+}

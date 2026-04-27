@@ -4,9 +4,11 @@
 #include "Pipeline.h"
 #include "core/Vertex.h"
 
+#include <glm/gtc/matrix_transform.hpp>
+
 #include <cassert>
 #include <stdexcept>
-
+#include <chrono>
 
 namespace {
     // top left = = red, top right = green, bottom right = blue, bottom left = white
@@ -56,6 +58,21 @@ Renderer::Renderer(const Device &device, SwapChain &swapChain, const Pipeline &p
     createCommandPool();
     createCommandBuffers();
     createSyncObjects();
+
+    // Reserve so emplace_back doesn't try to move existing Buffers around
+    uniformBuffers.reserve(MAX_FRAMES_IN_FLIGHT);
+    uniformBuffersMapped.reserve(MAX_FRAMES_IN_FLIGHT);
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+        // Host-visible because we write to it every frame from the CPU
+        uniformBuffers.emplace_back(
+            device,
+            sizeof(UniformBufferObject),
+            vk::BufferUsageFlagBits::eUniformBuffer,
+            vk::MemoryPropertyFlagBits::eHostVisible |
+            vk::MemoryPropertyFlagBits::eHostCoherent);
+        // Persistent mapping: get the pointer once, reuse it forever
+        uniformBuffersMapped.push_back(uniformBuffers.back().mapPersistent());
+    }
 }
 
 void Renderer::drawFrame(bool externalResize) {
@@ -85,6 +102,9 @@ void Renderer::drawFrame(bool externalResize) {
 
     // Only reset the fence if we are submitting work
     device.logical().resetFences(*inFlightFences[frameIndex]);
+
+    // Refresh the MVP matrices for this frame before recording the draw
+    updateUniformBuffer(frameIndex);
 
     commandBuffers[frameIndex].reset();
     recordCommandBuffer(imageIndex);
@@ -285,4 +305,42 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex) {
     );
 
     commandBuffer.end();
+}
+
+void Renderer::updateUniformBuffer(uint32_t frameIdx) {
+    // Time since program start, used to drive the rotation
+    static auto startTime = std::chrono::high_resolution_clock::now();
+    const auto currentTime = std::chrono::high_resolution_clock::now();
+    const float time = std::chrono::duration<float, std::chrono::seconds::period>(
+        currentTime - startTime).count();
+
+    const auto [width, height] = swapChain.extent();
+
+    UniformBufferObject ubo{};
+
+    // Spin around the Z axis at 90 degrees per second
+    ubo.model = glm::rotate(
+        glm::mat4(1.0f),
+        time * glm::radians(90.0f),
+        glm::vec3(0.0f, 0.0f, 1.0f)
+    );
+    // Camera at (2,2,2) looking at the origin, with +Z as up
+    ubo.view = glm::lookAt(
+        glm::vec3(2.0f, 2.0f, 2.0f),
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(0.0f, 0.0f, 1.0f)
+    );
+    // 45-degree perspective, aspect ratio derived from the current swapchain
+    ubo.proj = glm::perspective(
+        glm::radians(45.0f),
+        static_cast<float>(width) /
+        static_cast<float>(height),
+        0.1f,
+        10.0f);
+
+    // GLM was designed for OpenGL; Vulkan's Y is flipped relative to that
+    ubo.proj[1][1] *= -1;
+
+    // Write directly into the persistently-mapped buffer for this frame
+    std::memcpy(uniformBuffersMapped[frameIdx], &ubo, sizeof(ubo));
 }

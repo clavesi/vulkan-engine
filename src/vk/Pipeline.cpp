@@ -98,9 +98,18 @@ Pipeline::Pipeline(const Device &device, const PipelineSpec &spec) {
         .pDynamicStates = dynamicStates
     };
 
+    // Build the descriptor set layout describing the resources the shader uses
+    vk::DescriptorSetLayoutCreateInfo descriptorLayoutInfo{
+        .bindingCount = static_cast<uint32_t>(spec.descriptorBindings.size()),
+        .pBindings = spec.descriptorBindings.data()
+    };
+    descriptorSetLayout = vk::raii::DescriptorSetLayout(device.logical(), descriptorLayoutInfo);
+
     // Create final graphics pipeline
+    // Pipeline layout references the descriptor set layout so the shader knows where to find its bound resources at draw time
     vk::PipelineLayoutCreateInfo layoutInfo{
-        .setLayoutCount = 0,
+        .setLayoutCount = 1,
+        .pSetLayouts = &*descriptorSetLayout,
         .pushConstantRangeCount = 0,
     };
     pipelineLayout = vk::raii::PipelineLayout(device.logical(), layoutInfo);

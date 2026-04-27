@@ -12,11 +12,23 @@
 namespace {
     PipelineSpec makeMainPipelineSpec(const std::string &shaderPath, vk::Format colorFormat) {
         const auto attrs = Vertex::getAttributeDescriptions();
+
+        // Every binding needs to be described through a VkDescriptorSetLayoutBinding struct.
+        // The vertex shader reads MVP matrices from a uniform buffer at binding 0
+        vk::DescriptorSetLayoutBinding uboBinding{
+            0,
+            vk::DescriptorType::eUniformBuffer,
+            1,
+            vk::ShaderStageFlagBits::eVertex,
+            nullptr
+        };
+
         return PipelineSpec{
             .shaderPath = shaderPath,
             .colorFormat = colorFormat,
             .bindingDescription = Vertex::getBindingDescription(),
-            .attributeDescriptions = {attrs.begin(), attrs.end()}
+            .attributeDescriptions = {attrs.begin(), attrs.end()},
+            .descriptorBindings = {uboBinding}
         };
     }
 } // namespace
