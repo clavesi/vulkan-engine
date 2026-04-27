@@ -51,9 +51,10 @@ Pipeline::Pipeline(const Device &device, const PipelineSpec &spec) {
         // Determines how fragments are generated for geometry. Any other mode than this requires enabling a GPU feature.
         .polygonMode = vk::PolygonMode::eFill,
         // Determines the type of face culling to use. Disabled, front, back, or both.
+        // Was eClockwise. The Y-flip in the projection matrix reverses winding order, so what's now "front-facing" is CCW.
         .cullMode = vk::CullModeFlagBits::eBack,
         // Specifies the vertex order for faces to be front-facing.
-        .frontFace = vk::FrontFace::eClockwise,
+        .frontFace = vk::FrontFace::eCounterClockwise,
         // Can alter depth values by constant or based on a fragment's slope. Sometimes used for shadow mapping.
         .depthBiasEnable = vk::False,
         // Thickness of lines in terms of number of fragments. Any higher than 1.0f requires enabling the `wideLines` GPU feature.

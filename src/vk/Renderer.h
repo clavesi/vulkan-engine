@@ -42,6 +42,9 @@ private:
 
     void updateUniformBuffer(uint32_t frameIdx);
 
+    void createDescriptorPool();
+    void createDescriptorSets();
+
     const Device &device;
     SwapChain &swapChain; // non-const because drawFrame may trigger recreate()
     const Pipeline &pipeline;
@@ -59,6 +62,11 @@ private:
     // the next frame's data without disturbing what the GPU is currently reading
     std::vector<Buffer> uniformBuffers;
     std::vector<void *> uniformBuffersMapped;
+
+    // Pool that descriptor sets are allocated from
+    vk::raii::DescriptorPool descriptorPool = nullptr;
+    // One descriptor set per frame in flight, each pointing at that frame's uniform buffer
+    std::vector<vk::raii::DescriptorSet> descriptorSets;
 
     Buffer vertexBuffer;
     // uint32_t vertexCount = 0; // currently unused

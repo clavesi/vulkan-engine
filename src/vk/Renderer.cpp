@@ -73,6 +73,9 @@ Renderer::Renderer(const Device &device, SwapChain &swapChain, const Pipeline &p
         // Persistent mapping: get the pointer once, reuse it forever
         uniformBuffersMapped.push_back(uniformBuffers.back().mapPersistent());
     }
+
+    createDescriptorPool();
+    createDescriptorSets();
 }
 
 void Renderer::drawFrame(bool externalResize) {
@@ -275,6 +278,15 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex) {
     // bind the index buffer
     commandBuffer.bindIndexBuffer(*indexBuffer.handle(), 0, vk::IndexType::eUint16);
 
+    // Bind this frame's descriptor set so the shader can find its uniform buffer
+    commandBuffer.bindDescriptorSets(
+        vk::PipelineBindPoint::eGraphics,
+        pipeline.layout(),
+        0, // first set
+        *descriptorSets[frameIndex],
+        nullptr // dynamic offsets, unused
+    );
+
     const auto extent = swapChain.extent();
     commandBuffer.setViewport(
         0,
@@ -343,4 +355,55 @@ void Renderer::updateUniformBuffer(uint32_t frameIdx) {
 
     // Write directly into the persistently-mapped buffer for this frame
     std::memcpy(uniformBuffersMapped[frameIdx], &ubo, sizeof(ubo));
+}
+
+void Renderer::createDescriptorPool() {
+    // Describr what descriptor types our descriptor sets are going to contain and how many of them
+    vk::DescriptorPoolSize poolSize(vk::DescriptorType::eUniformBuffer, MAX_FRAMES_IN_FLIGHT);
+
+    const vk::DescriptorPoolCreateInfo poolInfo{
+        // Required because vk::raii::DescriptorSet's destructor calls vkFreeDescriptorSets; without this flag, validation complains on shutdown
+        .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
+        // maxSets caps how many descriptor *sets* (not individual descriptors) can be allocated from this pool over its lifetime
+        .maxSets = MAX_FRAMES_IN_FLIGHT,
+        .poolSizeCount = 1,
+        .pPoolSizes = &poolSize
+    };
+
+    descriptorPool = vk::raii::DescriptorPool(device.logical(), poolInfo);
+}
+
+
+void Renderer::createDescriptorSets() {
+    // allocateDescriptorSets wants one layout pointer per set, even though they're all the same layout in our case
+    std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, *pipeline.descriptorLayout());
+    vk::DescriptorSetAllocateInfo allocInfo{
+        .descriptorPool = descriptorPool,
+        .descriptorSetCount = static_cast<uint32_t>(layouts.size()),
+        .pSetLayouts = layouts.data()
+    };
+
+    descriptorSets.clear();
+    descriptorSets = device.logical().allocateDescriptorSets(allocInfo);
+
+    // Each descriptor set is allocated but empty — point each one at its corresponding uniform buffer
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        vk::DescriptorBufferInfo bufferInfo{
+            .buffer = uniformBuffers[i].handle(),
+            .offset = 0,
+            .range = sizeof(UniformBufferObject)
+        };
+
+        vk::WriteDescriptorSet descriptorWrite{
+            .dstSet = descriptorSets[i],
+            // dstBinding 0 matches the binding in the shader and the pipeline's descriptor set layout
+            .dstBinding = 0,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = vk::DescriptorType::eUniformBuffer,
+            .pBufferInfo = &bufferInfo
+        };
+
+        device.logical().updateDescriptorSets(descriptorWrite, {});
+    }
 }
