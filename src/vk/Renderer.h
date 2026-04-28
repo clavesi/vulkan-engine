@@ -1,12 +1,13 @@
 #pragma once
 
 #include "Buffer.h"
-#include "../core/UniformBufferObject.h"
 #include "Image.h"
+#include "Sampler.h"
 
 #include <vulkan/vulkan_raii.hpp>
 
 #include <vector>
+
 
 class Device;
 class SwapChain;
@@ -77,4 +78,6 @@ private:
     uint32_t indexCount = 0;
 
     std::optional<Image> textureImage;
+    vk::raii::ImageView textureImageView = nullptr;
+    std::optional<Sampler> textureSampler;
 };

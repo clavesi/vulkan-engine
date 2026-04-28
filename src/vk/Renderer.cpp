@@ -3,6 +3,7 @@
 #include "SwapChain.h"
 #include "Pipeline.h"
 #include "core/Vertex.h"
+#include "core/UniformBufferObject.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 #define STB_IMAGE_IMPLEMENTATION
@@ -11,15 +12,16 @@
 #include <cassert>
 #include <stdexcept>
 #include <chrono>
-
+#include <iostream>
+#include <filesystem>
 
 namespace {
     // top left = = red, top right = green, bottom right = blue, bottom left = white
     const std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-        {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
+        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+        {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
     };
 
     // Index buffers allows you to reorder the vertex buffer, allowing reuse of data for multiple vertex.
@@ -58,6 +60,7 @@ Renderer::Renderer(const Device &device, SwapChain &swapChain, const Pipeline &p
         sizeof(indices[0]) * indices.size()
     );
 
+    createTextureImage();
     createCommandPool();
     createCommandBuffers();
     createSyncObjects();
@@ -361,16 +364,21 @@ void Renderer::updateUniformBuffer(uint32_t frameIdx) {
 }
 
 void Renderer::createDescriptorPool() {
-    // Describr what descriptor types our descriptor sets are going to contain and how many of them
-    vk::DescriptorPoolSize poolSize(vk::DescriptorType::eUniformBuffer, MAX_FRAMES_IN_FLIGHT);
+    // Two pool sizes now: one for UBOs (matrices), one for combined image samplers (textures)
+    std::array<vk::DescriptorPoolSize, 2> poolSizes{
+        {
+            {.type = vk::DescriptorType::eUniformBuffer, .descriptorCount = MAX_FRAMES_IN_FLIGHT},
+            {.type = vk::DescriptorType::eCombinedImageSampler, .descriptorCount = MAX_FRAMES_IN_FLIGHT}
+        }
+    };
 
     const vk::DescriptorPoolCreateInfo poolInfo{
-        // Required because vk::raii::DescriptorSet's destructor calls vkFreeDescriptorSets; without this flag, validation complains on shutdown
+        // Required for vk::raii::DescriptorSet's destructor
         .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
         // maxSets caps how many descriptor *sets* (not individual descriptors) can be allocated from this pool over its lifetime
         .maxSets = MAX_FRAMES_IN_FLIGHT,
-        .poolSizeCount = 1,
-        .pPoolSizes = &poolSize
+        .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
+        .pPoolSizes = poolSizes.data()
     };
 
     descriptorPool = vk::raii::DescriptorPool(device.logical(), poolInfo);
@@ -397,24 +405,43 @@ void Renderer::createDescriptorSets() {
             .range = sizeof(UniformBufferObject)
         };
 
-        vk::WriteDescriptorSet descriptorWrite{
-            .dstSet = descriptorSets[i],
-            // dstBinding 0 matches the binding in the shader and the pipeline's descriptor set layout
-            .dstBinding = 0,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = vk::DescriptorType::eUniformBuffer,
-            .pBufferInfo = &bufferInfo
+        // Combined image sampler bundles both the image view and sampler into one descriptor
+        vk::DescriptorImageInfo imageInfo{
+            .sampler = textureSampler->handle(),
+            .imageView = textureImageView,
+            .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
         };
 
-        device.logical().updateDescriptorSets(descriptorWrite, {});
+        // Two writes: binding 0 is the UBO (matrices), binding 1 is the texture
+        std::array<vk::WriteDescriptorSet, 2> writes{
+            {
+                {
+                    .dstSet = descriptorSets[i],
+                    .dstBinding = 0,
+                    .dstArrayElement = 0,
+                    .descriptorCount = 1,
+                    .descriptorType = vk::DescriptorType::eUniformBuffer,
+                    .pBufferInfo = &bufferInfo
+                },
+                {
+                    .dstSet = descriptorSets[i],
+                    .dstBinding = 1,
+                    .dstArrayElement = 0,
+                    .descriptorCount = 1,
+                    .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+                    .pImageInfo = &imageInfo
+                }
+            }
+        };
+
+        device.logical().updateDescriptorSets(writes, {});
     }
 }
 
 void Renderer::createTextureImage() {
     int texWidth, texHeight, texChannels;
     stbi_uc *pixels = stbi_load(
-        "textires/texture.jpg", &texWidth, &texHeight, &texChannels,
+        "textures/texture.jpg", &texWidth, &texHeight, &texChannels,
         STBI_rgb_alpha // force an alpha channel even if it doesn't have one
     );
     const vk::DeviceSize imageSize = texWidth * texHeight * 4;
@@ -458,6 +485,11 @@ void Renderer::createTextureImage() {
         vk::ImageLayout::eTransferDstOptimal,
         vk::ImageLayout::eShaderReadOnlyOptimal
     );
+
+    // View lets shaders access the image
+    textureImageView = textureImage->createView();
+    // sampler defines how it's filtered
+    textureSampler.emplace(device);
 
     // staging automatically destroys here
 }

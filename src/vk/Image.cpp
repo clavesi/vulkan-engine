@@ -2,11 +2,11 @@
 
 #include "Device.h"
 
-Image::Image(const Device &device, uint32_t width, uint32_t height,
-             vk::Format format, vk::ImageTiling tiling,
-             vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties)
+Image::Image(const Device &device, const uint32_t width, const uint32_t height,
+             const vk::Format format, const vk::ImageTiling tiling,
+             const vk::ImageUsageFlags usage, const vk::MemoryPropertyFlags properties)
     : device(device), imageFormat(format), imageWidth(width), imageHeight(height) {
-    vk::ImageCreateInfo imageInfo{
+    const vk::ImageCreateInfo imageInfo{
         .imageType = vk::ImageType::e2D,
         .format = format,
         .extent = {width, height, 1},
@@ -20,8 +20,8 @@ Image::Image(const Device &device, uint32_t width, uint32_t height,
     };
     image = vk::raii::Image(device.logical(), imageInfo);
 
-    vk::MemoryRequirements memRequirements = image.getMemoryRequirements();
-    vk::MemoryAllocateInfo allocInfo{
+    const vk::MemoryRequirements memRequirements = image.getMemoryRequirements();
+    const vk::MemoryAllocateInfo allocInfo{
         .allocationSize = memRequirements.size,
         .memoryTypeIndex = device.findMemoryType(memRequirements.memoryTypeBits, properties)
     };
@@ -29,8 +29,8 @@ Image::Image(const Device &device, uint32_t width, uint32_t height,
     image.bindMemory(*memory, 0);
 }
 
-void Image::transitionLayout(vk::ImageLayout oldLayout, vk::ImageLayout newLayout) {
-    auto cmd = device.beginSingleTimeCommands();
+void Image::transitionLayout(const vk::ImageLayout oldLayout, const vk::ImageLayout newLayout) {
+    const auto cmd = device.beginSingleTimeCommands();
 
     vk::ImageMemoryBarrier barrier{
         .oldLayout = oldLayout,
@@ -72,9 +72,9 @@ void Image::transitionLayout(vk::ImageLayout oldLayout, vk::ImageLayout newLayou
 }
 
 void Image::copyFromBuffer(const vk::raii::Buffer &src, uint32_t width, uint32_t height) {
-    auto cmd = device.beginSingleTimeCommands();
+    const auto cmd = device.beginSingleTimeCommands();
 
-    vk::BufferImageCopy region{
+    const vk::BufferImageCopy region{
         .bufferOffset = 0,
         .bufferRowLength = 0, // tightly packed
         .bufferImageHeight = 0,
@@ -86,4 +86,15 @@ void Image::copyFromBuffer(const vk::raii::Buffer &src, uint32_t width, uint32_t
     cmd.copyBufferToImage(src, image, vk::ImageLayout::eTransferDstOptimal, region);
 
     device.endSingleTimeCommands(cmd);
+}
+
+vk::raii::ImageView Image::createView(const vk::ImageAspectFlags aspect) const {
+    // Aspect is eColor for textures, eDepth for depth buffers
+    const vk::ImageViewCreateInfo viewInfo{
+        .image = image,
+        .viewType = vk::ImageViewType::e2D,
+        .format = imageFormat,
+        .subresourceRange = {aspect, 0, 1, 0, 1}
+    };
+    return vk::raii::ImageView(device.logical(), viewInfo);
 }

@@ -109,6 +109,7 @@ bool Device::isDeviceSuitable(
         vk::PhysicalDeviceVulkan13Features,
         vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
     const bool supportsRequiredFeatures =
+            features.get<vk::PhysicalDeviceFeatures2>().features.samplerAnisotropy &&
             features.get<vk::PhysicalDeviceVulkan11Features>().shaderDrawParameters &&
             features.get<vk::PhysicalDeviceVulkan13Features>().dynamicRendering &&
             features.get<vk::PhysicalDeviceVulkan13Features>().synchronization2 &&
@@ -163,7 +164,8 @@ void Device::createLogicalDevice() {
         vk::PhysicalDeviceVulkan13Features,
         vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT
     > featureChain;
-    // Leave PhysicalDeviceFeatures2 empty
+    // Sampler anisotropy lives on the base PhysicalDeviceFeatures2
+    featureChain.get<vk::PhysicalDeviceFeatures2>().features.samplerAnisotropy = vk::True;
     // Enable shader draw parameters required by SPIR-V DrawParameters capability
     featureChain.get<vk::PhysicalDeviceVulkan11Features>().shaderDrawParameters = VK_TRUE;
     // Enable dynamic rendering from Vulkan 1.3

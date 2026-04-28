@@ -29,6 +29,10 @@ public:
     // End, submit, and wait. Caller must not use the buffer after this.
     void endSingleTimeCommands(const vk::raii::CommandBuffer &cmd) const;
 
+    [[nodiscard]] const vk::PhysicalDeviceProperties properties() const {
+        return physicalDevice.getProperties();
+    }
+
 private:
     [[nodiscard]] bool isDeviceSuitable(
         const vk::raii::PhysicalDevice &candidate,

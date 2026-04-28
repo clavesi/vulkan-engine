@@ -27,6 +27,8 @@ public:
     void copyFromBuffer(const vk::raii::Buffer &src,
                         uint32_t width, uint32_t height);
 
+    [[nodiscard]] vk::raii::ImageView createView(vk::ImageAspectFlags aspect = vk::ImageAspectFlagBits::eColor) const;
+
     [[nodiscard]] const vk::raii::Image &handle() const { return image; }
     [[nodiscard]] vk::Format format() const { return imageFormat; }
     [[nodiscard]] uint32_t width() const { return imageWidth; }

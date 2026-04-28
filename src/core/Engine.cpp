@@ -13,8 +13,7 @@ namespace {
     PipelineSpec makeMainPipelineSpec(const std::string &shaderPath, vk::Format colorFormat) {
         const auto attrs = Vertex::getAttributeDescriptions();
 
-        // Every binding needs to be described through a VkDescriptorSetLayoutBinding struct.
-        // The vertex shader reads MVP matrices from a uniform buffer at binding 0
+        // Vertex shader reads MVP matrices from the UBO
         vk::DescriptorSetLayoutBinding uboBinding{
             0,
             vk::DescriptorType::eUniformBuffer,
@@ -23,12 +22,20 @@ namespace {
             nullptr
         };
 
+        // Fragment shader samples colors from the texture
+        vk::DescriptorSetLayoutBinding samplerBinding{
+            .binding = 1,
+            .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+            .descriptorCount = 1,
+            .stageFlags = vk::ShaderStageFlagBits::eFragment
+        };
+
         return PipelineSpec{
             .shaderPath = shaderPath,
             .colorFormat = colorFormat,
             .bindingDescription = Vertex::getBindingDescription(),
             .attributeDescriptions = {attrs.begin(), attrs.end()},
-            .descriptorBindings = {uboBinding}
+            .descriptorBindings = {uboBinding, samplerBinding}
         };
     }
 } // namespace
