@@ -5,30 +5,38 @@ refactored from a single-file application into a modular engine structure.
 
 ## Current Progress
 
-Tutorial progress: **swap chain recreation** (end of the "Drawing a triangle" chapter).
+Tutorial progress: **texture mapping** (end of the "Texture mapping" chapter).
 
-The application opens a window and renders a hardcoded triangle using dynamic rendering (no render passes). Window
-resize and minimize are handled correctly.
+The application opens a window and renders a textured 3D square that spins in perspective view. It uses dynamic
+rendering (no render passes), index buffers, per-frame uniform buffers for MVP matrices, and a combined image sampler
+descriptor for the texture. Window resize and minimize are handled correctly.
 
 ## Project Structure
 
 ```
 src/
-  main.cpp                ← Entry point; constructs Engine and runs it
+  main.cpp                    ← Entry point; constructs Engine and runs it
   core/
-    Config.hpp            ← EngineConfig struct (window size, shader paths, etc.)
-    Engine.hpp/.cpp       ← Top-level composer; owns all subsystems and runs the main loop
-    Window.hpp/.cpp       ← GLFW window wrapper; creates the VkSurfaceKHR
+    Config.hpp                ← EngineConfig struct (window size, shader paths, etc.)
+    Engine.hpp/.cpp           ← Top-level composer; owns all subsystems and runs the main loop
+    Window.hpp/.cpp           ← GLFW window wrapper; creates the VkSurfaceKHR
+    Vertex.hpp                ← Vertex struct (pos, color, texCoord) + binding/attribute descriptions
+    UniformBufferObject.hpp   ← MVP matrix struct shared with the shader
   vk/
-    Instance.hpp/.cpp     ← Vulkan instance + debug messenger + validation layers
-    Device.hpp/.cpp       ← Physical device selection + logical device + queue
-    SwapChain.hpp/.cpp    ← Swapchain + image views + recreation logic
-    Pipeline.hpp/.cpp     ← Graphics pipeline + pipeline layout + shader module loading
-    Renderer.hpp/.cpp     ← Command pool/buffers, sync objects, per-frame draw loop
+    Instance.hpp/.cpp         ← Vulkan instance + debug messenger + validation layers
+    Device.hpp/.cpp           ← Physical device selection + logical device + queue + transient pool
+    SwapChain.hpp/.cpp        ← Swapchain + image views + recreation logic
+    Pipeline.hpp/.cpp         ← Graphics pipeline + descriptor set layout + shader module loading
+    Buffer.hpp/.cpp           ← vk::raii::Buffer + DeviceMemory wrapper; upload + staging helpers
+    Image.hpp/.cpp            ← vk::raii::Image + DeviceMemory wrapper; layout transitions, view creation
+    Sampler.hpp/.cpp          ← vk::raii::Sampler wrapper
+    Renderer.hpp/.cpp         ← Command pool/buffers, sync, descriptors, per-frame draw loop
   io/
-    FileIO.hpp/.cpp       ← Generic binary file reading (used for SPIR-V)
+    FileIO.hpp/.cpp           ← Generic binary file reading (used for SPIR-V)
 shaders/
-  shader.slang            ← Source shader (Slang language, compiled to SPIR-V)
+  shader.slang                ← Source shader (Slang language, compiled to SPIR-V)
+textures/
+  texture.jpg                 ← Sample texture loaded by the renderer
 CMakeLists.txt
 ```
 
@@ -45,12 +53,27 @@ Engine
   ├── SurfaceKHR (raw, from Window + Instance)
   ├── Device ──────────── needs Instance + Surface
   ├── SwapChain ───────── needs Device + Window + Surface
-  ├── Pipeline ────────── needs Device + swapchain format
+  ├── Pipeline ────────── needs Device + swapchain format + descriptor bindings
   └── Renderer ────────── needs Device + SwapChain + Pipeline
+                          (owns Buffers, Image, Sampler internally)
 ```
 
 Construction flows top-down; destruction happens in reverse via RAII. Member declaration order in `Engine.hpp`
 determines both.
+
+### Resource wrappers
+
+Three thin classes wrap the Vulkan resource primitives:
+
+- **`Buffer`** — pairs `vk::raii::Buffer` + `vk::raii::DeviceMemory`. Supports direct upload (`uploadData`),
+  staged upload to device-local memory (`uploadViaStaging`), and persistent mapping (`mapPersistent`) for
+  per-frame uniform writes.
+- **`Image`** — pairs `vk::raii::Image` + `vk::raii::DeviceMemory`. Supports layout transitions
+  (`transitionLayout`), copying from a staging buffer (`copyFromBuffer`), and image view creation (`createView`).
+- **`Sampler`** — wraps `vk::raii::Sampler` with sensible defaults (linear filtering, anisotropy, repeat addressing).
+
+These wrappers compose: `Renderer` holds a vertex `Buffer`, an index `Buffer`, a vector of uniform `Buffer`s
+(one per frame in flight), a texture `Image`, an `ImageView`, and a `Sampler`.
 
 ### Design principles
 
@@ -79,7 +102,8 @@ while (!window.shouldClose()) {
 device.waitIdle();
 ```
 
-`Renderer::drawFrame` handles fences, semaphores, command buffer recording, submission, and presentation. It calls
+`Renderer::drawFrame` handles fences, semaphores, command buffer recording, submission, and presentation. It updates
+the per-frame uniform buffer with new MVP matrices, binds the descriptor set (UBO + texture sampler), and calls
 `swapChain.recreate()` internally when the swapchain becomes out-of-date or when the caller signals a resize.
 
 ## Build
@@ -89,9 +113,10 @@ device.waitIdle();
 - CMake ≥ 3.29
 - C++20-capable compiler (GCC 13+, Clang 17+, MSVC 19.34+)
 - [vcpkg](https://vcpkg.io/) with:
-    - `vulkan`
-    - `glfw3`
-    - `glm`
+  - `vulkan`
+  - `glfw3`
+  - `glm`
+  - `stb` (for image loading)
 - Vulkan SDK (for `slangc` shader compiler and validation layers)
 
 ### Building
@@ -113,13 +138,18 @@ resulting `.spv` files are copied next to the executable.
 If `slangc` is not found, the `shaders/` directory is copied as-is — you'll need to pre-compile your shaders manually in
 that case.
 
+### Textures
+
+The `textures/` directory is copied next to the executable at build time. Loaded at runtime via `stb_image`. Drop in
+any JPG/PNG named `texture.jpg` to swap the displayed texture.
+
 ### Running
 
 ```sh
 ./build/vulkan_tutorial_app
 ```
 
-The executable expects `shaders/` to be adjacent to it (the CMake post-build step handles this).
+The executable expects `shaders/` and `textures/` to be adjacent to it (the CMake post-build steps handle this).
 
 ## Vulkan-Hpp Notes
 
@@ -134,9 +164,9 @@ These are set up in `CMakeLists.txt`:
 target_compile_definitions(vulkan_tutorial_app PRIVATE
   VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
   VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
+  VULKAN_HPP_HANDLE_ERROR_OUT_OF_DATE_AS_SUCCESS
 )
 ```
-
 
 ## Required GPU Features
 
@@ -145,7 +175,7 @@ The device selection in `Device::isDeviceSuitable` requires:
 - Vulkan 1.3
 - Graphics queue family with present support for the surface
 - `VK_KHR_swapchain` extension
-- Features: `shaderDrawParameters`, `dynamicRendering`, `synchronization2`, `extendedDynamicState`
+- Features: `samplerAnisotropy`, `shaderDrawParameters`, `dynamicRendering`, `synchronization2`, `extendedDynamicState`
 
 Most desktop GPUs from the last few years meet these requirements. Integrated graphics may need driver updates.
 
@@ -153,13 +183,15 @@ Most desktop GPUs from the last few years meet these requirements. Integrated gr
 
 Following the Vulkan Tutorial, the next topics are:
 
-- [ ] Vertex buffers
-- [ ] Index buffers
-- [ ] Uniform buffers + descriptor sets
-- [ ] Texture mapping
+- [x] Vertex buffers
+- [x] Index buffers
+- [x] Uniform buffers + descriptor sets
+- [x] Texture mapping
 - [ ] Depth buffering
 - [ ] Model loading
 - [ ] Mipmaps
 - [ ] Multisampling
 
-Each chapter will likely require extending existing classes (e.g., `Pipeline` grows to accept descriptor set layouts) or adding new ones (e.g., a `Buffer` class wrapping `vk::raii::Buffer` + `vk::raii::DeviceMemory`).
+Each chapter typically extends existing classes (e.g., `Pipeline` grew to accept `PipelineSpec` with vertex inputs
+and descriptor bindings) or adds new ones (e.g., `Buffer`, `Image`, `Sampler` were each introduced when their
+respective primitives were first needed).
