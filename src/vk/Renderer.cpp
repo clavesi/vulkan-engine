@@ -5,10 +5,13 @@
 #include "core/Vertex.h"
 
 #include <glm/gtc/matrix_transform.hpp>
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
 
 #include <cassert>
 #include <stdexcept>
 #include <chrono>
+
 
 namespace {
     // top left = = red, top right = green, bottom right = blue, bottom left = white
@@ -406,4 +409,55 @@ void Renderer::createDescriptorSets() {
 
         device.logical().updateDescriptorSets(descriptorWrite, {});
     }
+}
+
+void Renderer::createTextureImage() {
+    int texWidth, texHeight, texChannels;
+    stbi_uc *pixels = stbi_load(
+        "textires/texture.jpg", &texWidth, &texHeight, &texChannels,
+        STBI_rgb_alpha // force an alpha channel even if it doesn't have one
+    );
+    const vk::DeviceSize imageSize = texWidth * texHeight * 4;
+    if (!pixels) {
+        throw std::runtime_error("failed to load texture image!");
+    }
+
+    // Stage on host-visible memory first
+    Buffer staging(
+        device,
+        imageSize,
+        vk::BufferUsageFlagBits::eTransferSrc,
+        vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+    );
+    staging.uploadData(pixels, imageSize);
+
+    stbi_image_free(pixels);
+
+    // Create the device-local image
+    textureImage.emplace(
+        device,
+        static_cast<uint32_t>(texWidth),
+        static_cast<uint32_t>(texHeight),
+        vk::Format::eR8G8B8A8Srgb,
+        vk::ImageTiling::eOptimal,
+        vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst,
+        vk::MemoryPropertyFlagBits::eDeviceLocal
+    );
+
+    // Move it to a layout that can receive a transfer, copy, then move to a layout suitable for shader sampling
+    textureImage->transitionLayout(
+        vk::ImageLayout::eUndefined,
+        vk::ImageLayout::eTransferDstOptimal
+    );
+    textureImage->copyFromBuffer(
+        staging.handle(),
+        static_cast<uint32_t>(texWidth),
+        static_cast<uint32_t>(texHeight)
+    );
+    textureImage->transitionLayout(
+        vk::ImageLayout::eTransferDstOptimal,
+        vk::ImageLayout::eShaderReadOnlyOptimal
+    );
+
+    // staging automatically destroys here
 }

@@ -33,20 +33,32 @@ uint32_t Device::findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags pro
 }
 
 void Device::copyBuffer(const vk::raii::Buffer &src, const vk::raii::Buffer &dst, vk::DeviceSize size) const {
+    auto cmd = beginSingleTimeCommands();
+
+    cmd.copyBuffer(src, dst, vk::BufferCopy{0, 0, size});
+
+    endSingleTimeCommands(cmd);
+}
+
+vk::raii::CommandBuffer Device::beginSingleTimeCommands() const {
     // Allocate a single-use command buffer from the transient pool
     vk::CommandBufferAllocateInfo allocInfo{
         .commandPool = transientPool,
         .level = vk::CommandBufferLevel::ePrimary,
         .commandBufferCount = 1
     };
-    const auto cmdBuffers = vk::raii::CommandBuffers(device, allocInfo);
-    const auto &cmd = cmdBuffers.front();
+    auto cmdBuffers = vk::raii::CommandBuffers(device, allocInfo);
+    auto cmd = std::move(cmdBuffers.front());
 
     // Tell the driver this buffer is recorded once and submitted once
     cmd.begin(vk::CommandBufferBeginInfo{
         .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit
     });
-    cmd.copyBuffer(src, dst, vk::BufferCopy{0, 0, size});
+
+    return cmd;
+}
+
+void Device::endSingleTimeCommands(const vk::raii::CommandBuffer &cmd) const {
     cmd.end();
 
     // Submit and block until the copy finishes (no fences needed for a one-shot)

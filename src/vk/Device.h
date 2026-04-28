@@ -23,6 +23,12 @@ public:
     // Submit a one-time copy command between two buffers
     void copyBuffer(const vk::raii::Buffer &src, const vk::raii::Buffer &dst, vk::DeviceSize size) const;
 
+    // Begin recording a one-shot command buffer for transient operations (uploads, layout transitions, etc.).
+    // Returned buffer is in the recording state — issue commands, then call endSingleTimeCommands.
+    [[nodiscard]] vk::raii::CommandBuffer beginSingleTimeCommands() const;
+    // End, submit, and wait. Caller must not use the buffer after this.
+    void endSingleTimeCommands(const vk::raii::CommandBuffer &cmd) const;
+
 private:
     [[nodiscard]] bool isDeviceSuitable(
         const vk::raii::PhysicalDevice &candidate,

@@ -2,6 +2,7 @@
 
 #include "Buffer.h"
 #include "../core/UniformBufferObject.h"
+#include "Image.h"
 
 #include <vulkan/vulkan_raii.hpp>
 
@@ -45,6 +46,8 @@ private:
     void createDescriptorPool();
     void createDescriptorSets();
 
+    void createTextureImage();
+
     const Device &device;
     SwapChain &swapChain; // non-const because drawFrame may trigger recreate()
     const Pipeline &pipeline;
@@ -72,4 +75,6 @@ private:
     // uint32_t vertexCount = 0; // currently unused
     Buffer indexBuffer;
     uint32_t indexCount = 0;
+
+    std::optional<Image> textureImage;
 };
