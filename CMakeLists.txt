@@ -1,8 +1,5 @@
 cmake_minimum_required(VERSION 3.29)
 
-# Minimal CMakeLists for the engine: auto-detect vcpkg, prefer config packages,
-# set C++20, expose repo CMake/ Find modules, find core deps and build App.cpp.
-
 # Detect a vcpkg toolchain automatically so vcpkg-installed packages are
 # available without requiring the user to manually set the toolchain in CLion.
 if (NOT DEFINED CMAKE_TOOLCHAIN_FILE)
@@ -39,7 +36,7 @@ set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)
 find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(glm REQUIRED)
-find_package(Stb REQUIRED)
+find_package(stb REQUIRED)
 
 # Shader compilation with Slang (optional, but preferred when slangc is available)
 # Use a relative glob pattern so paths like "[0]Vulkan" do not interfere with matching.
@@ -86,7 +83,7 @@ else ()
 endif ()
 
 # Executable
-add_executable(vulkan_tutorial_app
+add_executable(vlk_engine
         # Main
         src/main.cpp
         # IO
@@ -104,64 +101,71 @@ add_executable(vulkan_tutorial_app
         src/vk/Sampler.cpp
         src/vk/Renderer.cpp
 )
-target_include_directories(vulkan_tutorial_app PRIVATE src ${STB_INCLUDE_DIRS})
-add_dependencies(vulkan_tutorial_app shaders)
+target_include_directories(vlk_engine PRIVATE src)
+add_dependencies(vlk_engine shaders)
+
+# Prefer imported target include propagation; fallback to module variable.
+if (TARGET stb::stb)
+    target_link_libraries(vlk_engine PRIVATE stb::stb)
+elseif (DEFINED stb_INCLUDE_DIRS)
+    target_include_directories(vlk_engine PRIVATE ${stb_INCLUDE_DIRS})
+endif ()
 
 # Link Vulkan first
 if (TARGET Vulkan::Vulkan)
-    target_link_libraries(vulkan_tutorial_app PRIVATE Vulkan::Vulkan)
+    target_link_libraries(vlk_engine PRIVATE Vulkan::Vulkan)
 elseif (DEFINED Vulkan_LIBRARY)
-    target_link_libraries(vulkan_tutorial_app PRIVATE ${Vulkan_LIBRARY})
+    target_link_libraries(vlk_engine PRIVATE ${Vulkan_LIBRARY})
 endif ()
 
 # Link GLFW (support common target names)
 if (TARGET glfw)
-    target_link_libraries(vulkan_tutorial_app PRIVATE glfw)
+    target_link_libraries(vlk_engine PRIVATE glfw)
 elseif (TARGET glfw3::glfw)
-    target_link_libraries(vulkan_tutorial_app PRIVATE glfw3::glfw)
+    target_link_libraries(vlk_engine PRIVATE glfw3::glfw)
 elseif (TARGET GLFW::GLFW)
-    target_link_libraries(vulkan_tutorial_app PRIVATE GLFW::GLFW)
+    target_link_libraries(vlk_engine PRIVATE GLFW::GLFW)
 endif ()
 
 # Link glm if available as a target
 if (TARGET glm::glm)
-    target_link_libraries(vulkan_tutorial_app PRIVATE glm::glm)
+    target_link_libraries(vlk_engine PRIVATE glm::glm)
 endif ()
 
 # Ensure C++20 is set on the target
-set_target_properties(vulkan_tutorial_app PROPERTIES CXX_STANDARD 20)
+set_target_properties(vlk_engine PROPERTIES CXX_STANDARD 20)
 
 # Compatibility flags for Vulkan-Hpp (allow aggregate-style initialization of vk:: structs
 # and enable the dynamic dispatch loader).
-target_compile_definitions(vulkan_tutorial_app PRIVATE
+target_compile_definitions(vlk_engine PRIVATE
         VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
         VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
 )
 
 # Copy assets next to the executable if the assets directory exists
 if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/assets)
-    add_custom_command(TARGET vulkan_tutorial_app POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/assets $<TARGET_FILE_DIR:vulkan_tutorial_app>/assets
+    add_custom_command(TARGET vlk_engine POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/assets $<TARGET_FILE_DIR:vlk_engine>/assets
     )
 endif ()
 
 # Copy textures next to the executable if the textures directory exists
 if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/textures)
-    add_custom_command(TARGET vulkan_tutorial_app POST_BUILD
+    add_custom_command(TARGET vlk_engine POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/textures
-            $<TARGET_FILE_DIR:vulkan_tutorial_app>/textures
+            $<TARGET_FILE_DIR:vlk_engine>/textures
     )
 endif ()
 
 # Copy shaders next to the executable.
 if (SLANGC_EXECUTABLE)
-    add_custom_command(TARGET vulkan_tutorial_app POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_BINARY_DIR}/shaders $<TARGET_FILE_DIR:vulkan_tutorial_app>/shaders
+    add_custom_command(TARGET vlk_engine POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_BINARY_DIR}/shaders $<TARGET_FILE_DIR:vlk_engine>/shaders
     )
 elseif (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
-    add_custom_command(TARGET vulkan_tutorial_app POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/shaders $<TARGET_FILE_DIR:vulkan_tutorial_app>/shaders
+    add_custom_command(TARGET vlk_engine POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/shaders $<TARGET_FILE_DIR:vlk_engine>/shaders
     )
 endif ()
 
