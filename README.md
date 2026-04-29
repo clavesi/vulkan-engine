@@ -146,7 +146,7 @@ any JPG/PNG named `texture.jpg` to swap the displayed texture.
 ### Running
 
 ```sh
-./build/vulkan_tutorial_app
+./build/vlk_engine
 ```
 
 The executable expects `shaders/` and `textures/` to be adjacent to it (the CMake post-build steps handle this).
@@ -161,7 +161,7 @@ The project uses `vulkan_raii.hpp` (header-only path) rather than the C++20 `vul
 These are set up in `CMakeLists.txt`:
 
 ```cmake
-target_compile_definitions(vulkan_tutorial_app PRIVATE
+target_compile_definitions(vlk_engine PRIVATE
   VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
   VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
   VULKAN_HPP_HANDLE_ERROR_OUT_OF_DATE_AS_SUCCESS
