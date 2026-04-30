@@ -9,13 +9,16 @@ public:
     Device(const Instance &instance, const vk::raii::SurfaceKHR &surface);
 
     Device(const Device &) = delete;
-
     Device &operator=(const Device &) = delete;
 
     [[nodiscard]] const vk::raii::PhysicalDevice &physical() const { return physicalDevice; }
     [[nodiscard]] const vk::raii::Device &logical() const { return device; }
     [[nodiscard]] const vk::raii::Queue &graphicsQueue() const { return queue; }
     [[nodiscard]] uint32_t queueFamilyIndex() const { return queueIndex; }
+
+    [[nodiscard]] vk::PhysicalDeviceProperties properties() const {
+        return physicalDevice.getProperties();
+    }
 
     void waitIdle() const { device.waitIdle(); }
 
@@ -29,9 +32,11 @@ public:
     // End, submit, and wait. Caller must not use the buffer after this.
     void endSingleTimeCommands(const vk::raii::CommandBuffer &cmd) const;
 
-    [[nodiscard]] const vk::PhysicalDeviceProperties properties() const {
-        return physicalDevice.getProperties();
-    }
+    [[nodiscard]] vk::Format findSupportedFormat(
+        const std::vector<vk::Format> &candidates,
+        vk::ImageTiling tiling,
+        vk::FormatFeatureFlags features) const;
+    [[nodiscard]] vk::Format findDepthFormat() const;
 
 private:
     [[nodiscard]] bool isDeviceSuitable(

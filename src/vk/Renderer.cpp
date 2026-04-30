@@ -12,23 +12,27 @@
 #include <cassert>
 #include <stdexcept>
 #include <chrono>
-#include <iostream>
-#include <filesystem>
 
 namespace {
     // top left = = red, top right = green, bottom right = blue, bottom left = white
     const std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-        {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
+        {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+        {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+        {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+        {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
+
+        {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+        {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+        {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+        {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
     };
 
     // Index buffers allows you to reorder the vertex buffer, allowing reuse of data for multiple vertex.
     // For example, a rectangle, split into two triangles, would have six vertices. But they share the two on the diagonal.
     // With index buffer, we only need to define them once in the vertex buffer and then use it twice in the index buffer.
     const std::vector<uint16_t> indices = {
-        0, 1, 2, 2, 3, 0
+        0, 1, 2, 2, 3, 0,
+        4, 5, 6, 6, 7, 4
     };
 }
 
@@ -441,7 +445,7 @@ void Renderer::createDescriptorSets() {
 void Renderer::createTextureImage() {
     int texWidth, texHeight, texChannels;
     stbi_uc *pixels = stbi_load(
-        "textures/texture.jpg", &texWidth, &texHeight, &texChannels,
+        "textures/texture2.jpg", &texWidth, &texHeight, &texChannels,
         STBI_rgb_alpha // force an alpha channel even if it doesn't have one
     );
     const vk::DeviceSize imageSize = texWidth * texHeight * 4;

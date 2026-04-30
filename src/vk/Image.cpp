@@ -32,21 +32,28 @@ Image::Image(const Device &device, const uint32_t width, const uint32_t height,
 void Image::transitionLayout(const vk::ImageLayout oldLayout, const vk::ImageLayout newLayout) {
     const auto cmd = device.beginSingleTimeCommands();
 
+    // Determine aspect from the new layout (depth-related layouts use eDepth)
+    vk::ImageAspectFlags aspect = vk::ImageAspectFlagBits::eColor;
+    if (newLayout == vk::ImageLayout::eDepthAttachmentOptimal ||
+        newLayout == vk::ImageLayout::eDepthStencilAttachmentOptimal) {
+        aspect = vk::ImageAspectFlagBits::eDepth;
+    }
+
     vk::ImageMemoryBarrier barrier{
         .oldLayout = oldLayout,
         .newLayout = newLayout,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .image = image,
-        .subresourceRange = {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1}
+        .subresourceRange = {aspect, 0, 1, 0, 1}
     };
 
     vk::PipelineStageFlags sourceStage;
     vk::PipelineStageFlags destinationStage;
 
     if (
-        oldLayout == vk::ImageLayout::eUndefined &&
-        newLayout == vk::ImageLayout::eTransferDstOptimal
+        oldLayout == vk::ImageLayout::eUndefined
+        && newLayout == vk::ImageLayout::eTransferDstOptimal
     ) {
         // Transfer writes don't have to wait on anything
         barrier.srcAccessMask = {};
@@ -62,6 +69,18 @@ void Image::transitionLayout(const vk::ImageLayout oldLayout, const vk::ImageLay
         barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
         sourceStage = vk::PipelineStageFlagBits::eTransfer;
         destinationStage = vk::PipelineStageFlagBits::eFragmentShader;
+    } else if (
+        oldLayout == vk::ImageLayout::eUndefined
+        && newLayout == vk::ImageLayout::eDepthAttachmentOptimal
+    ) {
+        barrier.srcAccessMask = {};
+        barrier.dstAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentWrite;
+        sourceStage = vk::PipelineStageFlagBits::eTopOfPipe;
+        destinationStage = vk::PipelineStageFlagBits::eEarlyFragmentTests;
+
+        // The aspect mask in the barrier needs to be eDepth, not eColor.
+        // Override the default we set above.
+        barrier.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eDepth;
     } else {
         throw std::invalid_argument("unsupported layout transition");
     }

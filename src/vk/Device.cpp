@@ -71,6 +71,33 @@ void Device::endSingleTimeCommands(const vk::raii::CommandBuffer &cmd) const {
     queue.waitIdle();
 }
 
+vk::Format Device::findSupportedFormat(
+    const std::vector<vk::Format> &candidates,
+    vk::ImageTiling tiling,
+    vk::FormatFeatureFlags features
+) const {
+    for (const auto format: candidates) {
+        vk::FormatProperties props = physicalDevice.getFormatProperties(format);
+
+        if (tiling == vk::ImageTiling::eLinear && (props.linearTilingFeatures & features) == features) {
+            return format;
+        }
+        if (tiling == vk::ImageTiling::eOptimal && (props.optimalTilingFeatures & features) == features) {
+            return format;
+        }
+    }
+
+    throw std::runtime_error("failed to find supported format!");
+}
+
+vk::Format Device::findDepthFormat() const {
+    return findSupportedFormat(
+        {vk::Format::eD32Sfloat, vk::Format::eD32SfloatS8Uint, vk::Format::eD24UnormS8Uint},
+        vk::ImageTiling::eOptimal,
+        vk::FormatFeatureFlagBits::eDepthStencilAttachment
+    );
+}
+
 bool Device::isDeviceSuitable(
     const vk::raii::PhysicalDevice &candidate,
     const vk::raii::SurfaceKHR &surf
