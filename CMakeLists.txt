@@ -37,6 +37,7 @@ find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(glm REQUIRED)
 find_package(stb REQUIRED)
+find_package(tinyobjloader CONFIG REQUIRED)
 
 # Shader compilation with Slang (optional, but preferred when slangc is available)
 # Use a relative glob pattern so paths like "[0]Vulkan" do not interfere with matching.
@@ -88,9 +89,11 @@ add_executable(vlk_engine
         src/main.cpp
         # IO
         src/io/FileIO.cpp
+        src/io/ModelLoader.cpp
         # Core
         src/core/Engine.cpp
         src/core/Window.cpp
+        src/core/Mesh.cpp
         # Vulkan wrappers
         src/vk/Instance.cpp
         src/vk/Device.cpp
@@ -132,6 +135,11 @@ if (TARGET glm::glm)
     target_link_libraries(vlk_engine PRIVATE glm::glm)
 endif ()
 
+# Link tinyobjloader if available as a target
+if (TARGET tinyobjloader::tinyobjloader)
+    target_link_libraries(vlk_engine PRIVATE tinyobjloader::tinyobjloader)
+endif ()
+
 # Ensure C++20 is set on the target
 set_target_properties(vlk_engine PROPERTIES CXX_STANDARD 20)
 
@@ -141,22 +149,6 @@ target_compile_definitions(vlk_engine PRIVATE
         VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
         VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
 )
-
-# Copy assets next to the executable if the assets directory exists
-if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/assets)
-    add_custom_command(TARGET vlk_engine POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/assets $<TARGET_FILE_DIR:vlk_engine>/assets
-    )
-endif ()
-
-# Copy textures next to the executable if the textures directory exists
-if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/textures)
-    add_custom_command(TARGET vlk_engine POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/textures
-            $<TARGET_FILE_DIR:vlk_engine>/textures
-    )
-endif ()
 
 # Copy shaders next to the executable.
 if (SLANGC_EXECUTABLE)
@@ -169,3 +161,18 @@ elseif (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
     )
 endif ()
 
+# Copy textures next to the executable if the textures directory exists
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/textures)
+    add_custom_command(TARGET vlk_engine POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/textures
+            $<TARGET_FILE_DIR:vlk_engine>/textures
+    )
+endif ()
+
+# Copy models/ next to the executable, parallel to shaders/ and textures/
+add_custom_command(TARGET vlk_engine POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/models
+        $<TARGET_FILE_DIR:vlk_engine>/models
+)

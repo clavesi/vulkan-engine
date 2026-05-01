@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/Config.h"
+#include "core/Mesh.h"
 #include "Buffer.h"
 #include "Image.h"
 #include "Sampler.h"
@@ -7,7 +9,7 @@
 #include <vulkan/vulkan_raii.hpp>
 
 #include <vector>
-
+#include<optional>
 
 class Device;
 class SwapChain;
@@ -15,7 +17,7 @@ class Pipeline;
 
 class Renderer {
 public:
-    Renderer(const Device &device, SwapChain &swapChain, const Pipeline &pipeline);
+    Renderer(const Device &device, SwapChain &swapChain, const Pipeline &pipeline, const EngineConfig &config);
 
     Renderer(const Renderer &) = delete;
     Renderer &operator=(const Renderer &) = delete;
@@ -52,6 +54,7 @@ private:
     const Device &device;
     SwapChain &swapChain; // non-const because drawFrame may trigger recreate()
     const Pipeline &pipeline;
+    const EngineConfig &config;
 
     // Manage memory used to store buffers and command buffers allocated from them
     vk::raii::CommandPool commandPool = nullptr;
@@ -72,10 +75,7 @@ private:
     // One descriptor set per frame in flight, each pointing at that frame's uniform buffer
     std::vector<vk::raii::DescriptorSet> descriptorSets;
 
-    Buffer vertexBuffer;
-    // uint32_t vertexCount = 0; // currently unused
-    Buffer indexBuffer;
-    uint32_t indexCount = 0;
+    std::optional<Mesh> mesh;
 
     std::optional<Image> textureImage;
     vk::raii::ImageView textureImageView = nullptr;

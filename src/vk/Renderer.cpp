@@ -1,3 +1,4 @@
+#include "io/ModelLoader.h"
 #include "Renderer.h"
 #include "Device.h"
 #include "SwapChain.h"
@@ -13,56 +14,14 @@
 #include <stdexcept>
 #include <chrono>
 
-namespace {
-    // top left = = red, top right = green, bottom right = blue, bottom left = white
-    const std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-        {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-        {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-        {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
-
-        {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-        {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-        {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-        {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
-    };
-
-    // Index buffers allows you to reorder the vertex buffer, allowing reuse of data for multiple vertex.
-    // For example, a rectangle, split into two triangles, would have six vertices. But they share the two on the diagonal.
-    // With index buffer, we only need to define them once in the vertex buffer and then use it twice in the index buffer.
-    const std::vector<uint16_t> indices = {
-        0, 1, 2, 2, 3, 0,
-        4, 5, 6, 6, 7, 4
-    };
-}
-
-Renderer::Renderer(const Device &device, SwapChain &swapChain, const Pipeline &pipeline)
+Renderer::Renderer(const Device &device, SwapChain &swapChain, const Pipeline &pipeline, const EngineConfig &config)
     : device(device),
       swapChain(swapChain),
       pipeline(pipeline),
-      // Vertex buffer now lives in fast device-local memory.
-      // eTransferDst is required because we'll copy into it from a staging buffer.
-      vertexBuffer(
-          device,
-          sizeof(vertices[0]) * vertices.size(),
-          vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst,
-          vk::MemoryPropertyFlagBits::eDeviceLocal),
-      // vertexCount(static_cast<uint32_t>(vertices.size())),
-      indexBuffer(
-          device,
-          sizeof(indices[0]) * indices.size(),
-          vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst,
-          vk::MemoryPropertyFlagBits::eDeviceLocal),
-      indexCount(static_cast<uint32_t>(indices.size())) {
-    // Device-local memory isn't CPU-mappable, so go through a staging buffer
-    vertexBuffer.uploadViaStaging(
-        vertices.data(),
-        sizeof(vertices[0]) * vertices.size()
-    );
-    indexBuffer.uploadViaStaging(
-        indices.data(),
-        sizeof(indices[0]) * indices.size()
-    );
+      config(config) {
+    // Load model from disk and upload to GPU
+    auto [vertices, indices] = io::loadObj(config.modelPath);
+    mesh.emplace(device, vertices, indices);
 
     createTextureImage();
     createCommandPool();
@@ -295,9 +254,9 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
 
     // bind the vertex buffer at binding 0 with offset 0
     constexpr vk::DeviceSize offset = 0;
-    commandBuffer.bindVertexBuffers(0, *vertexBuffer.handle(), offset);
+    commandBuffer.bindVertexBuffers(0, *mesh->vertexBuffer().handle(), offset);
     // bind the index buffer
-    commandBuffer.bindIndexBuffer(*indexBuffer.handle(), 0, vk::IndexType::eUint16);
+    commandBuffer.bindIndexBuffer(*mesh->indexBuffer().handle(), 0, vk::IndexType::eUint32);
 
     // Bind this frame's descriptor set so the shader can find its uniform buffer
     commandBuffer.bindDescriptorSets(
@@ -321,7 +280,7 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
     commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), extent));
 
     // Read the count from the buffer.
-    commandBuffer.drawIndexed(indexCount, 1, 0, 0, 0);
+    commandBuffer.drawIndexed(mesh->indexCount(), 1, 0, 0, 0);
 
     // End rendering
     commandBuffer.endRendering();
@@ -456,7 +415,7 @@ void Renderer::createDescriptorSets() {
 void Renderer::createTextureImage() {
     int texWidth, texHeight, texChannels;
     stbi_uc *pixels = stbi_load(
-        "textures/texture2.jpg", &texWidth, &texHeight, &texChannels,
+        config.texturePath.c_str(), &texWidth, &texHeight, &texChannels,
         STBI_rgb_alpha // force an alpha channel even if it doesn't have one
     );
     const vk::DeviceSize imageSize = texWidth * texHeight * 4;

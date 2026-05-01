@@ -5,6 +5,7 @@
 // Force GLM to use std140-compatible alignment for vec/mat types. Saves us from having to write alignas(16) on every member.
 // BE AWARE: this guard does NOT fix nested structs — those still need explicit alignas. Always be explicit when in doubt.
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
+#define GLM_ENABLE_EXPERIMENTAL  // required for glm/gtx/hash.hpp in Vertex.hpp
 #include <glm/glm.hpp>
 
 // Per-frame transformation data passed to the vertex shader.

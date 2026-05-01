@@ -45,7 +45,7 @@ Engine::Engine(EngineConfig cfg)
       device(instance, surface),
       swapChain(device, window, surface),
       pipeline(device, makeMainPipelineSpec(config.shaderPath, swapChain.format(), swapChain.depthFormat())),
-      renderer(device, swapChain, pipeline) {
+      renderer(device, swapChain, pipeline, config) {
 }
 
 Engine::~Engine() {
