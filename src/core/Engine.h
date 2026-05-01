@@ -12,7 +12,7 @@
 
 class Engine {
 public:
-    Engine(EngineConfig config = {});
+    Engine(EngineConfig cfg = {});
     ~Engine();
 
     Engine(const Engine &) = delete;

@@ -1,8 +1,11 @@
 #pragma once
 
+#include "Image.h"
+
 #include <vulkan/vulkan_raii.hpp>
 
 #include <vector>
+#include <optional>
 
 class Window;
 class Device;
@@ -26,20 +29,24 @@ public:
     [[nodiscard]] const std::vector<vk::Image> &images() const { return swapChainImages; }
     [[nodiscard]] const std::vector<vk::raii::ImageView> &imageViews() const { return swapChainImageViews; }
     [[nodiscard]] size_t imageCount() const { return swapChainImages.size(); }
-    [[nodiscard]] vk::Image image(size_t i) const { return swapChainImages[i]; }
-    [[nodiscard]] const vk::raii::ImageView &imageView(size_t i) const { return swapChainImageViews[i]; }
+    [[nodiscard]] vk::Image image(const size_t i) const { return swapChainImages[i]; }
+    [[nodiscard]] const vk::raii::ImageView &imageView(const size_t i) const { return swapChainImageViews[i]; }
+
+    [[nodiscard]] vk::Format depthFormat() const { return chosenDepthFormat; }
+    [[nodiscard]] const vk::raii::ImageView &depthView() const { return depthImageView; }
 
 private:
     // FORMERLY: createSwapChain()
     void create();
-    void createImageViews();
     // FORMERLY: cleanupSwapChain()
     void destroy();
 
     static uint32_t chooseMinImageCount(const vk::SurfaceCapabilitiesKHR &caps);
     static vk::SurfaceFormatKHR chooseSurfaceFormat(const std::vector<vk::SurfaceFormatKHR> &available);
     static vk::PresentModeKHR choosePresentMode(const std::vector<vk::PresentModeKHR> &available);
-    vk::Extent2D chooseExtent(const vk::SurfaceCapabilitiesKHR &caps) const;
+    [[nodiscard]] vk::Extent2D chooseExtent(const vk::SurfaceCapabilitiesKHR &caps) const;
+
+    void createDepthResources();
 
     // Stored references — these outlive the SwapChain because the Engine
     // destroys its members in reverse declaration order.
@@ -52,4 +59,8 @@ private:
     vk::SurfaceFormatKHR surfaceFormat;
     vk::Extent2D swapChainExtent;
     std::vector<vk::raii::ImageView> swapChainImageViews;
+
+    vk::Format chosenDepthFormat;
+    std::optional<Image> depthImage;
+    vk::raii::ImageView depthImageView = nullptr;
 };

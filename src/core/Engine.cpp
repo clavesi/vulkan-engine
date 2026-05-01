@@ -1,16 +1,12 @@
 #include "Engine.h"
 
-#include <stdexcept>
-#include <cassert>
 #include <fstream>
 
 #define GLFW_INCLUDE_VULKAN
 #include "Vertex.h"
 
-#include <GLFW/glfw3.h>
-
 namespace {
-    PipelineSpec makeMainPipelineSpec(const std::string &shaderPath, vk::Format colorFormat) {
+    PipelineSpec makeMainPipelineSpec(const std::string &shaderPath, const vk::Format colorFormat, const vk::Format depthFormat) {
         const auto attrs = Vertex::getAttributeDescriptions();
 
         // Vertex shader reads MVP matrices from the UBO
@@ -35,7 +31,8 @@ namespace {
             .colorFormat = colorFormat,
             .bindingDescription = Vertex::getBindingDescription(),
             .attributeDescriptions = {attrs.begin(), attrs.end()},
-            .descriptorBindings = {uboBinding, samplerBinding}
+            .descriptorBindings = {uboBinding, samplerBinding},
+            .depthFormat = depthFormat
         };
     }
 } // namespace
@@ -47,7 +44,7 @@ Engine::Engine(EngineConfig cfg)
       surface(window.createSurface(instance.get())),
       device(instance, surface),
       swapChain(device, window, surface),
-      pipeline(device, makeMainPipelineSpec(config.shaderPath, swapChain.format())),
+      pipeline(device, makeMainPipelineSpec(config.shaderPath, swapChain.format(), swapChain.depthFormat())),
       renderer(device, swapChain, pipeline) {
 }
 
@@ -66,8 +63,7 @@ void Engine::mainLoop() {
     while (!window.shouldClose()) {
         window.pollEvents();
 
-        const bool resized = window.wasResized();
-        if (resized) {
+        if (window.wasResized()) {
             window.resetResizedFlag();
         }
 

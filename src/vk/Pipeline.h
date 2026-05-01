@@ -13,6 +13,7 @@ struct PipelineSpec {
     std::vector<vk::VertexInputAttributeDescription> attributeDescriptions;
     // Descriptors the shader expects (uniform buffers, samplers, etc.)
     std::vector<vk::DescriptorSetLayoutBinding> descriptorBindings;
+    vk::Format depthFormat = vk::Format::eUndefined;
 };
 
 class Pipeline {
@@ -30,9 +31,9 @@ public:
     [[nodiscard]] const vk::raii::DescriptorSetLayout &descriptorLayout() const { return descriptorSetLayout; }
 
 private:
-    vk::raii::ShaderModule createShaderModule(
+    static vk::raii::ShaderModule createShaderModule(
         const vk::raii::Device &device, const std::vector<char> &code
-    ) const;
+    );
 
     // declared before pipelineLayout since pipeline layout references it
     vk::raii::DescriptorSetLayout descriptorSetLayout = nullptr;

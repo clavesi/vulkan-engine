@@ -39,10 +39,10 @@ private:
         vk::ImageLayout oldLayout, vk::ImageLayout newLayout,
         vk::AccessFlags2 srcAccessMask, vk::AccessFlags2 dstAccessMask,
         vk::PipelineStageFlags2 srcStageMask, vk::PipelineStageFlags2 dstStageMask
-    );
-    void recordCommandBuffer(uint32_t imageIndex);
+    ) const;
+    void recordCommandBuffer(uint32_t imageIndex) const;
 
-    void updateUniformBuffer(uint32_t frameIdx);
+    void updateUniformBuffer(uint32_t frameIdx) const;
 
     void createDescriptorPool();
     void createDescriptorSets();

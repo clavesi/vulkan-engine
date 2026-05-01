@@ -6,8 +6,9 @@ SwapChain::SwapChain(const Device &device,
                      const Window &window,
                      const vk::raii::SurfaceKHR &surface)
     : device(device), window(window), surface(surface) {
+    chosenDepthFormat = device.findDepthFormat();
     create();
-    createImageViews();
+    createDepthResources();
 }
 
 // Recreate the swap chain. Useful for things like the window is resized or minimized.
@@ -19,8 +20,7 @@ void SwapChain::recreate() {
 
     destroy();
     create();
-    // need to recreate image views since they're based on the swap chain images
-    createImageViews();
+    createDepthResources();
 }
 
 void SwapChain::create() {
@@ -39,7 +39,7 @@ void SwapChain::create() {
     const vk::PresentModeKHR presentMode = choosePresentMode(presentModes);
     const uint32_t minImageCount = chooseMinImageCount(surfaceCaps);
 
-    vk::SwapchainCreateInfoKHR createInfo{
+    const vk::SwapchainCreateInfoKHR createInfo{
         .surface = surface,
         .minImageCount = minImageCount,
         .imageFormat = surfaceFormat.format,
@@ -66,24 +66,23 @@ void SwapChain::create() {
 
     swapChain = vk::raii::SwapchainKHR(device.logical(), createInfo);
     swapChainImages = swapChain.getImages();
-}
 
-void SwapChain::createImageViews() {
-    assert(swapChainImageViews.empty());
-
-    vk::ImageViewCreateInfo createInfo{
+    vk::ImageViewCreateInfo viewInfo{
         .viewType = vk::ImageViewType::e2D,
         .format = surfaceFormat.format,
         .subresourceRange = {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1}
     };
 
-    for (auto &image: swapChainImages) {
-        createInfo.image = image;
-        swapChainImageViews.emplace_back(device.logical(), createInfo);
+    for (const auto &image: swapChainImages) {
+        viewInfo.image = image;
+        swapChainImageViews.emplace_back(device.logical(), viewInfo);
     }
 }
 
 void SwapChain::destroy() {
+    depthImageView = nullptr;
+    depthImage.reset();
+
     // Clear the image views before destroying the swap chain since they depend on the swap chain images.
     swapChainImageViews.clear();
     swapChain = nullptr;
@@ -156,4 +155,24 @@ vk::Extent2D SwapChain::chooseExtent(const vk::SurfaceCapabilitiesKHR &caps) con
         std::clamp<uint32_t>(width, caps.minImageExtent.width, caps.maxImageExtent.width),
         std::clamp<uint32_t>(height, caps.minImageExtent.height, caps.maxImageExtent.height)
     };
+}
+
+void SwapChain::createDepthResources() {
+    depthImage.emplace(
+        device,
+        swapChainExtent.width,
+        swapChainExtent.height,
+        chosenDepthFormat,
+        vk::ImageTiling::eOptimal,
+        vk::ImageUsageFlagBits::eDepthStencilAttachment,
+        vk::MemoryPropertyFlagBits::eDeviceLocal
+    );
+    depthImageView = depthImage->createView(vk::ImageAspectFlagBits::eDepth);
+
+    // Transition once — depth image is reused every frame, so this layout
+    // persists across frames (we'll re-transition each frame in the renderer
+    // because the load op clears anyway, but doing it here primes the layout)
+    depthImage->transitionLayout(
+        vk::ImageLayout::eUndefined,
+        vk::ImageLayout::eDepthAttachmentOptimal);
 }

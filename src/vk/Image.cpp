@@ -29,7 +29,7 @@ Image::Image(const Device &device, const uint32_t width, const uint32_t height,
     image.bindMemory(*memory, 0);
 }
 
-void Image::transitionLayout(const vk::ImageLayout oldLayout, const vk::ImageLayout newLayout) {
+void Image::transitionLayout(const vk::ImageLayout oldLayout, const vk::ImageLayout newLayout) const {
     const auto cmd = device.beginSingleTimeCommands();
 
     // Determine aspect from the new layout (depth-related layouts use eDepth)
@@ -73,14 +73,11 @@ void Image::transitionLayout(const vk::ImageLayout oldLayout, const vk::ImageLay
         oldLayout == vk::ImageLayout::eUndefined
         && newLayout == vk::ImageLayout::eDepthAttachmentOptimal
     ) {
+        // Depth attachment writes happen in the early fragment test stage
         barrier.srcAccessMask = {};
         barrier.dstAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentWrite;
         sourceStage = vk::PipelineStageFlagBits::eTopOfPipe;
         destinationStage = vk::PipelineStageFlagBits::eEarlyFragmentTests;
-
-        // The aspect mask in the barrier needs to be eDepth, not eColor.
-        // Override the default we set above.
-        barrier.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eDepth;
     } else {
         throw std::invalid_argument("unsupported layout transition");
     }
@@ -90,7 +87,7 @@ void Image::transitionLayout(const vk::ImageLayout oldLayout, const vk::ImageLay
     device.endSingleTimeCommands(cmd);
 }
 
-void Image::copyFromBuffer(const vk::raii::Buffer &src, uint32_t width, uint32_t height) {
+void Image::copyFromBuffer(const vk::raii::Buffer &src, const uint32_t width, const uint32_t height) const {
     const auto cmd = device.beginSingleTimeCommands();
 
     const vk::BufferImageCopy region{

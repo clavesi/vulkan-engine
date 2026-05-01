@@ -20,12 +20,12 @@ public:
 
     // Records and submits a one-shot pipeline barrier to change the image's layout.
     // Currently handles two transitions: undefined → transfer dst,and transfer dst → shader read.
-    void transitionLayout(vk::ImageLayout oldLayout, vk::ImageLayout newLayout);
+    void transitionLayout(vk::ImageLayout oldLayout, vk::ImageLayout newLayout) const;
 
     // Copies pixel data from a host-visible buffer into this image.
     // The image must already be in eTransferDstOptimal layout.
     void copyFromBuffer(const vk::raii::Buffer &src,
-                        uint32_t width, uint32_t height);
+                        uint32_t width, uint32_t height) const;
 
     [[nodiscard]] vk::raii::ImageView createView(vk::ImageAspectFlags aspect = vk::ImageAspectFlagBits::eColor) const;
 

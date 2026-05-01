@@ -67,8 +67,13 @@ Pipeline::Pipeline(const Device &device, const PipelineSpec &spec) {
         .sampleShadingEnable = vk::False
     };
 
-    // If using a depth and/or stencil buffer, setup the struct for it. Since we're not, just set to nullptr.
-    vk::PipelineDepthStencilStateCreateInfo depthStencil = {};
+    vk::PipelineDepthStencilStateCreateInfo depthStencil = {
+        .depthTestEnable = vk::True,
+        .depthWriteEnable = vk::True,
+        .depthCompareOp = vk::CompareOp::eLess,
+        .depthBoundsTestEnable = vk::False,
+        .stencilTestEnable = vk::False
+    };
 
     // After frag shader turns color, it needs to combine with color already in the framebuffer.
     // This is color blending. Either mix the old and new or combine the old and new using bitwise
@@ -90,7 +95,7 @@ Pipeline::Pipeline(const Device &device, const PipelineSpec &spec) {
     // A limited amount of data can be changed without recreating the pipeline at draw time, such as viewport size and line width.
     // So we need to use this dynamic state and keep those properties in it.
     // With this, you now have to specify this data at draw time.
-    const vk::DynamicState dynamicStates[] = {
+    constexpr vk::DynamicState dynamicStates[] = {
         vk::DynamicState::eViewport,
         vk::DynamicState::eScissor
     };
@@ -118,7 +123,8 @@ Pipeline::Pipeline(const Device &device, const PipelineSpec &spec) {
     // To use dynamic rendering, we need to specify the formats of the attachments that will be used.
     vk::PipelineRenderingCreateInfo renderingInfo{
         .colorAttachmentCount = 1,
-        .pColorAttachmentFormats = &spec.colorFormat
+        .pColorAttachmentFormats = &spec.colorFormat,
+        .depthAttachmentFormat = spec.depthFormat
     };
 
     vk::GraphicsPipelineCreateInfo pipelineInfo{
@@ -145,8 +151,8 @@ Pipeline::Pipeline(const Device &device, const PipelineSpec &spec) {
   */
 vk::raii::ShaderModule Pipeline::createShaderModule(
     const vk::raii::Device &device, const std::vector<char> &code
-) const {
-    vk::ShaderModuleCreateInfo createInfo{
+) {
+    const vk::ShaderModuleCreateInfo createInfo{
         .codeSize = code.size(),
         .pCode = reinterpret_cast<const uint32_t *>(code.data())
     };

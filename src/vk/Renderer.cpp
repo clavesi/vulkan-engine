@@ -88,10 +88,10 @@ Renderer::Renderer(const Device &device, SwapChain &swapChain, const Pipeline &p
     createDescriptorSets();
 }
 
-void Renderer::drawFrame(bool externalResize) {
+void Renderer::drawFrame(const bool externalResize) {
     // Note: inFlightFences, presentCompleteSemaphores, and commandBuffers are indexed by frameIndex,
     //       while renderFinishedSemaphores is indexed by imageIndex
-    auto fenceResult = device.logical().waitForFences(*inFlightFences[frameIndex], vk::True, UINT64_MAX);
+    const auto fenceResult = device.logical().waitForFences(*inFlightFences[frameIndex], vk::True, UINT64_MAX);
     if (fenceResult != vk::Result::eSuccess) {
         throw std::runtime_error("failed to wait for fence!");
     }
@@ -167,7 +167,7 @@ void Renderer::drawFrame(bool externalResize) {
 }
 
 void Renderer::createCommandPool() {
-    vk::CommandPoolCreateInfo commandPoolInfo{
+    const vk::CommandPoolCreateInfo commandPoolInfo{
         .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
         .queueFamilyIndex = device.queueFamilyIndex()
     };
@@ -176,7 +176,7 @@ void Renderer::createCommandPool() {
 
 void Renderer::createCommandBuffers() {
     commandBuffers.clear();
-    vk::CommandBufferAllocateInfo allocInfo{
+    const vk::CommandBufferAllocateInfo allocInfo{
         .commandPool = commandPool,
         .level = vk::CommandBufferLevel::ePrimary,
         .commandBufferCount = MAX_FRAMES_IN_FLIGHT
@@ -209,11 +209,11 @@ void Renderer::createSyncObjects() {
 
 // Transition image layout to one that's suitable for rendering.
 void Renderer::transitionImageLayout(
-    uint32_t imageIndex,
-    vk::ImageLayout oldLayout, vk::ImageLayout newLayout,
-    vk::AccessFlags2 srcAccessMask, vk::AccessFlags2 dstAccessMask,
-    vk::PipelineStageFlags2 srcStageMask, vk::PipelineStageFlags2 dstStageMask
-) {
+    const uint32_t imageIndex,
+    const vk::ImageLayout oldLayout, const vk::ImageLayout newLayout,
+    const vk::AccessFlags2 srcAccessMask, const vk::AccessFlags2 dstAccessMask,
+    const vk::PipelineStageFlags2 srcStageMask, const vk::PipelineStageFlags2 dstStageMask
+) const {
     vk::ImageMemoryBarrier2 barrier = {
         .srcStageMask = srcStageMask,
         .srcAccessMask = srcAccessMask,
@@ -233,7 +233,7 @@ void Renderer::transitionImageLayout(
         }
     };
 
-    vk::DependencyInfo dependencyInfo = {
+    const vk::DependencyInfo dependencyInfo = {
         .dependencyFlags = {},
         .imageMemoryBarrierCount = 1,
         .pImageMemoryBarriers = &barrier
@@ -243,8 +243,8 @@ void Renderer::transitionImageLayout(
 }
 
 // Write commands we want to execute into a command buffer
-void Renderer::recordCommandBuffer(uint32_t imageIndex) {
-    auto &commandBuffer = commandBuffers[frameIndex];
+void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
+    const auto &commandBuffer = commandBuffers[frameIndex];
     commandBuffer.begin({});
 
     // Before starting rendering, transition the swapchain image to COLOR_ATTACHMENT_OPTIMAL
@@ -260,7 +260,9 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex) {
 
     // Set up the color attachment
     constexpr vk::ClearValue clearColor = vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f);
-    vk::RenderingAttachmentInfo attachmentInfo = {
+    constexpr vk::ClearValue clearDepth = vk::ClearDepthStencilValue(1.0f, 0);
+
+    vk::RenderingAttachmentInfo colorAttachment = {
         .imageView = swapChain.imageView(imageIndex),
         .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
         .loadOp = vk::AttachmentLoadOp::eClear,
@@ -268,12 +270,21 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex) {
         .clearValue = clearColor
     };
 
+    vk::RenderingAttachmentInfo depthAttachment = {
+        .imageView = swapChain.depthView(),
+        .imageLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal,
+        .loadOp = vk::AttachmentLoadOp::eClear,
+        .storeOp = vk::AttachmentStoreOp::eDontCare,
+        .clearValue = clearDepth
+    };
+
     // Set up the rendering info
-    vk::RenderingInfo renderingInfo = {
+    const vk::RenderingInfo renderingInfo = {
         .renderArea = {.offset = {0, 0}, .extent = swapChain.extent()},
         .layerCount = 1,
         .colorAttachmentCount = 1,
-        .pColorAttachments = &attachmentInfo
+        .pColorAttachments = &colorAttachment,
+        .pDepthAttachment = &depthAttachment
     };
 
     // Begin rendering
@@ -283,7 +294,7 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex) {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline.handle());
 
     // bind the vertex buffer at binding 0 with offset 0
-    vk::DeviceSize offset = 0;
+    constexpr vk::DeviceSize offset = 0;
     commandBuffer.bindVertexBuffers(0, *vertexBuffer.handle(), offset);
     // bind the index buffer
     commandBuffer.bindIndexBuffer(*indexBuffer.handle(), 0, vk::IndexType::eUint16);
@@ -329,7 +340,7 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex) {
     commandBuffer.end();
 }
 
-void Renderer::updateUniformBuffer(uint32_t frameIdx) {
+void Renderer::updateUniformBuffer(const uint32_t frameIdx) const {
     // Time since program start, used to drive the rotation
     static auto startTime = std::chrono::high_resolution_clock::now();
     const auto currentTime = std::chrono::high_resolution_clock::now();
@@ -392,7 +403,7 @@ void Renderer::createDescriptorPool() {
 void Renderer::createDescriptorSets() {
     // allocateDescriptorSets wants one layout pointer per set, even though they're all the same layout in our case
     std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, *pipeline.descriptorLayout());
-    vk::DescriptorSetAllocateInfo allocInfo{
+    const vk::DescriptorSetAllocateInfo allocInfo{
         .descriptorPool = descriptorPool,
         .descriptorSetCount = static_cast<uint32_t>(layouts.size()),
         .pSetLayouts = layouts.data()
