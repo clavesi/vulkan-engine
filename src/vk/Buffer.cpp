@@ -3,12 +3,11 @@
 
 #include <stdexcept>
 
-
 Buffer::Buffer(
-    const Device &device, vk::DeviceSize size,
-    vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties
+    const Device &device, const vk::DeviceSize size,
+    const vk::BufferUsageFlags usage, const vk::MemoryPropertyFlags properties
 ) : device(device), bufferSize(size) {
-    vk::BufferCreateInfo bufferInfo{
+    const vk::BufferCreateInfo bufferInfo{
         .size = size,
         .usage = usage,
         // Exclusive access from the graphics queue
@@ -20,7 +19,7 @@ Buffer::Buffer(
 
     const auto memRequirements = buffer.getMemoryRequirements();
     // Allocate memory
-    vk::MemoryAllocateInfo allocInfo{
+    const vk::MemoryAllocateInfo allocInfo{
         .allocationSize = memRequirements.size,
         .memoryTypeIndex = device.findMemoryType(memRequirements.memoryTypeBits, properties)
     };
@@ -31,7 +30,7 @@ Buffer::Buffer(
     buffer.bindMemory(*memory, 0);
 }
 
-void Buffer::uploadData(const void *src, vk::DeviceSize size) {
+void Buffer::uploadData(const void *src, const vk::DeviceSize size) const {
     if (size > bufferSize) {
         throw std::runtime_error("Upload exceeds buffer size!");
     }
@@ -44,13 +43,13 @@ void Buffer::uploadData(const void *src, vk::DeviceSize size) {
     // or what we do, using MemoryPropertyFlagBits::eHostCoherent (Renderer & findMemoryType())
 }
 
-void Buffer::uploadViaStaging(const void *src, vk::DeviceSize size) {
+void Buffer::uploadViaStaging(const void *src, const vk::DeviceSize size) const {
     if (size > bufferSize) {
         throw std::runtime_error("Upload exceeds buffer size!");
     }
 
     // Temporary CPU-visible buffer we can map and write into
-    Buffer staging(
+    const Buffer staging(
         device,
         size,
         vk::BufferUsageFlagBits::eTransferSrc,

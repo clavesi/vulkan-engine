@@ -39,10 +39,10 @@ public:
     [[nodiscard]] vk::Format findDepthFormat() const;
 
 private:
-    [[nodiscard]] bool isDeviceSuitable(
+    [[nodiscard]] static bool isDeviceSuitable(
         const vk::raii::PhysicalDevice &candidate,
         const vk::raii::SurfaceKHR &surf
-    ) const;
+    );
 
     void pickPhysicalDevice(
         const vk::raii::Instance &inst,

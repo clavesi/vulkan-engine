@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdint>
 #include <string_view>
 #include <utility>
 #include <vulkan/vulkan_raii.hpp>
@@ -31,7 +30,7 @@ public:
 
     [[nodiscard]] bool shouldClose() const;
 
-    void pollEvents() const;
+    static void pollEvents() ;
 
     // Returs {width, height} in pixels.
     // Blocks (waiting on events) while the window is minimized.

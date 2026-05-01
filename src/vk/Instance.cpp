@@ -81,7 +81,7 @@ void Instance::createInstance() {
         throw std::runtime_error("Required extension not supported: " + std::string(*unsupportedPropertyIt));
     }
 
-    vk::InstanceCreateInfo createInfo{
+    const vk::InstanceCreateInfo createInfo{
         .pApplicationInfo = &appInfo,
         .enabledLayerCount = static_cast<uint32_t>(requiredLayers.size()),
         .ppEnabledLayerNames = requiredLayers.data(),
@@ -108,7 +108,7 @@ void Instance::setupDebugMessenger() {
         vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance |
         vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation);
 
-    vk::DebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCreateInfoEXT{
+    constexpr vk::DebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCreateInfoEXT{
         .messageSeverity = severityFlags,
         .messageType = messageTypeFlags,
         // Pointer to callback function

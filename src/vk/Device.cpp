@@ -20,20 +20,20 @@ Device::Device(const Instance &instance, const vk::raii::SurfaceKHR &surface) {
 
 // Graphics card can offer different types of memory to allocate from.
 // Combining requirements of the buffer and our app's requirements, we find the right type of memory to use.
-uint32_t Device::findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties) const {
+uint32_t Device::findMemoryType(const uint32_t typeFilter, const vk::MemoryPropertyFlags properties) const {
     // Get device's types of memories
-    const auto memPropertiess = physicalDevice.getMemoryProperties();
+    const auto memProperties = physicalDevice.getMemoryProperties();
     // Find suitable memory
-    for (uint32_t i = 0; i < memPropertiess.memoryTypeCount; i++) {
-        if ((typeFilter & (1 << i)) && (memPropertiess.memoryTypes[i].propertyFlags & properties) == properties) {
+    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
             return i;
         }
     }
     throw std::runtime_error("failed to find suitable memory type!");
 }
 
-void Device::copyBuffer(const vk::raii::Buffer &src, const vk::raii::Buffer &dst, vk::DeviceSize size) const {
-    auto cmd = beginSingleTimeCommands();
+void Device::copyBuffer(const vk::raii::Buffer &src, const vk::raii::Buffer &dst, const vk::DeviceSize size) const {
+    const auto cmd = beginSingleTimeCommands();
 
     cmd.copyBuffer(src, dst, vk::BufferCopy{0, 0, size});
 
@@ -42,7 +42,7 @@ void Device::copyBuffer(const vk::raii::Buffer &src, const vk::raii::Buffer &dst
 
 vk::raii::CommandBuffer Device::beginSingleTimeCommands() const {
     // Allocate a single-use command buffer from the transient pool
-    vk::CommandBufferAllocateInfo allocInfo{
+    const vk::CommandBufferAllocateInfo allocInfo{
         .commandPool = transientPool,
         .level = vk::CommandBufferLevel::ePrimary,
         .commandBufferCount = 1
@@ -73,8 +73,8 @@ void Device::endSingleTimeCommands(const vk::raii::CommandBuffer &cmd) const {
 
 vk::Format Device::findSupportedFormat(
     const std::vector<vk::Format> &candidates,
-    vk::ImageTiling tiling,
-    vk::FormatFeatureFlags features
+    const vk::ImageTiling tiling,
+    const vk::FormatFeatureFlags features
 ) const {
     for (const auto format: candidates) {
         vk::FormatProperties props = physicalDevice.getFormatProperties(format);
@@ -101,7 +101,7 @@ vk::Format Device::findDepthFormat() const {
 bool Device::isDeviceSuitable(
     const vk::raii::PhysicalDevice &candidate,
     const vk::raii::SurfaceKHR &surf
-) const {
+) {
     // Vulkan 1.3
     const bool supportsVulkan1_3 = candidate.getProperties().apiVersion >= vk::ApiVersion13;
 
@@ -157,7 +157,7 @@ void Device::pickPhysicalDevice(
     std::vector<vk::raii::PhysicalDevice> physicalDevices = inst.enumeratePhysicalDevices();
     auto const iter = std::ranges::find_if(
         physicalDevices,
-        [this, &surf](const auto &pd) {
+        [&surf](const auto &pd) {
             return isDeviceSuitable(pd, surf);
         });
     if (iter == physicalDevices.end()) {
@@ -224,7 +224,7 @@ void Device::createLogicalDevice() {
 
 // eTransient hints to the driver that command buffers from this pool are short-lived
 void Device::createTransientCommandPool() {
-    vk::CommandPoolCreateInfo info{
+    const vk::CommandPoolCreateInfo info{
         .flags = vk::CommandPoolCreateFlagBits::eTransient,
         .queueFamilyIndex = queueIndex
     };

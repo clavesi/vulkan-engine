@@ -465,7 +465,7 @@ void Renderer::createTextureImage() {
     }
 
     // Stage on host-visible memory first
-    Buffer staging(
+    const Buffer staging(
         device,
         imageSize,
         vk::BufferUsageFlagBits::eTransferSrc,

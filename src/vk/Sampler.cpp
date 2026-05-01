@@ -4,7 +4,7 @@
 Sampler::Sampler(const Device &device) {
     const auto props = device.properties();
 
-    vk::SamplerCreateInfo info{
+    const vk::SamplerCreateInfo info{
         // Linear filtering smooths magnified/minified textures (vs eNearest blocky)
         .magFilter = vk::Filter::eLinear,
         .minFilter = vk::Filter::eLinear,

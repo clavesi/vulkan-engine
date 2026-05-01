@@ -6,7 +6,7 @@
 #include <vulkan/vulkan_raii.hpp>
 #include <stdexcept>
 
-Window::Window(uint32_t width, uint32_t height, std::string_view title) {
+Window::Window(const uint32_t width, const uint32_t height, const std::string_view title) {
     glfwInit();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -38,7 +38,7 @@ bool Window::shouldClose() const {
     return glfwWindowShouldClose(handle);
 }
 
-void Window::pollEvents() const {
+void Window::pollEvents() {
     glfwPollEvents();
 }
 
