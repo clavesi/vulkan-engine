@@ -423,6 +423,9 @@ void Renderer::createTextureImage() {
         throw std::runtime_error("failed to load texture image!");
     }
 
+    // floor(log_2(max_dim)) + 1 - number of mip levels down to 1x1
+    const uint32_t mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
+
     // Stage on host-visible memory first
     const Buffer staging(
         device,
@@ -439,9 +442,10 @@ void Renderer::createTextureImage() {
         device,
         static_cast<uint32_t>(texWidth),
         static_cast<uint32_t>(texHeight),
+        mipLevels,
         vk::Format::eR8G8B8A8Srgb,
         vk::ImageTiling::eOptimal,
-        vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst,
+        vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc,
         vk::MemoryPropertyFlagBits::eDeviceLocal
     );
 
@@ -455,15 +459,12 @@ void Renderer::createTextureImage() {
         static_cast<uint32_t>(texWidth),
         static_cast<uint32_t>(texHeight)
     );
-    textureImage->transitionLayout(
-        vk::ImageLayout::eTransferDstOptimal,
-        vk::ImageLayout::eShaderReadOnlyOptimal
-    );
+    textureImage->generateMipmaps(vk::Format::eR8G8B8A8Srgb, texWidth, texHeight);
 
     // View lets shaders access the image
     textureImageView = textureImage->createView();
     // sampler defines how it's filtered
-    textureSampler.emplace(device);
+    textureSampler.emplace(device, vk::LodClampNone);
 
     // staging automatically destroys here
 }

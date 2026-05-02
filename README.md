@@ -5,17 +5,18 @@ refactored from a single-file application into a modular engine structure.
 
 ## Current Progress
 
-Tutorial progress: **loading models** (end of the "Loading models" chapter).
+Tutorial progress: **generating mipmaps** (end of the "Generating Mipmaps" chapter).
 
-The application opens a window and renders a textured 3D model loaded from an OBJ file, with depth buffering and
-perspective view. It uses dynamic rendering (no render passes), index buffers, per-frame uniform buffers for MVP
-matrices, and a combined image sampler descriptor for the texture. Window resize and minimize are handled correctly.
+The application opens a window and renders a textured 3D model loaded from an OBJ file, with depth buffering,
+runtime-generated mipmaps, and perspective view. It uses dynamic rendering (no render passes), index buffers,
+per-frame uniform buffers for MVP matrices, and a combined image sampler descriptor for the texture. Window resize
+and minimize are handled correctly.
 
 ## Project Structure
 
 ```
 src/
-  main.cpp                    ← Entry point; constructs Engine and runs it
+  main.cpp                  ← Entry point; constructs Engine and runs it
   core/
     Config.h                ← EngineConfig struct (window size, shader paths, model/texture paths, etc.)
     Engine.h/.cpp           ← Top-level composer; owns all subsystems and runs the main loop
@@ -29,18 +30,18 @@ src/
     SwapChain.h/.cpp        ← Swapchain + image views + depth resources + recreation logic
     Pipeline.h/.cpp         ← Graphics pipeline + descriptor set layout + shader module loading
     Buffer.h/.cpp           ← vk::raii::Buffer + DeviceMemory wrapper; upload + staging helpers
-    Image.h/.cpp            ← vk::raii::Image + DeviceMemory wrapper; layout transitions, view creation
-    Sampler.h/.cpp          ← vk::raii::Sampler wrapper
+    Image.h/.cpp            ← vk::raii::Image + DeviceMemory wrapper; layout transitions, view creation, mipmap generation
+    Sampler.h/.cpp          ← vk::raii::Sampler wrapper with configurable maxLod for mipmapping
     Renderer.h/.cpp         ← Command pool/buffers, sync, descriptors, per-frame draw loop
   io/
     FileIO.h/.cpp           ← Generic binary file reading (used for SPIR-V)
     ModelLoader.h/.cpp      ← OBJ loading via tinyobjloader, with vertex deduplication
 shaders/
-  shader.slang                ← Source shader (Slang language, compiled to SPIR-V)
+  shader.slang              ← Source shader (Slang language, compiled to SPIR-V)
 textures/
-  *.png                       ← Texture loaded by the renderer (path configured via EngineConfig)
+  *.png                     ← Texture loaded by the renderer (path configured via EngineConfig)
 models/
-  *.obj                       ← Model loaded by the renderer (path configured via EngineConfig)
+  *.obj                     ← Model loaded by the renderer (path configured via EngineConfig)
 CMakeLists.txt
 ```
 
@@ -73,8 +74,10 @@ Three thin classes wrap the Vulkan resource primitives:
   staged upload to device-local memory (`uploadViaStaging`), and persistent mapping (`mapPersistent`) for
   per-frame uniform writes.
 - **`Image`** — pairs `vk::raii::Image` + `vk::raii::DeviceMemory`. Supports layout transitions
-  (`transitionLayout`), copying from a staging buffer (`copyFromBuffer`), and image view creation (`createView`).
-- **`Sampler`** — wraps `vk::raii::Sampler` with sensible defaults (linear filtering, anisotropy, repeat addressing).
+  (`transitionLayout`), copying from a staging buffer (`copyFromBuffer`), image view creation (`createView`),
+  and runtime mipmap generation via `vkCmdBlitImage` (`generateMipmaps`). Mip level count is set at construction.
+- **`Sampler`** — wraps `vk::raii::Sampler` with sensible defaults (linear filtering, anisotropy, repeat addressing,
+  linear mipmap interpolation). Takes `maxLod` at construction to control the active mip range.
 
 A `Mesh` class composes two `Buffer`s (vertex + index) plus an index count, and is the unit `Renderer` works with for
 geometry. Renderer holds a `Mesh`, a vector of uniform `Buffer`s (one per frame in flight), a texture `Image`, an
@@ -118,11 +121,11 @@ the per-frame uniform buffer with new MVP matrices, binds the descriptor set (UB
 - CMake ≥ 3.29
 - C++20-capable compiler (GCC 13+, Clang 17+, MSVC 19.34+)
 - [vcpkg](https://vcpkg.io/) with:
-  - `vulkan`
-  - `glfw3`
-  - `glm`
-  - `stb` (for image loading)
-  - `tinyobjloader` (for model loading)
+    - `vulkan`
+    - `glfw3`
+    - `glm`
+    - `stb` (for image loading)
+    - `tinyobjloader` (for model loading)
 - Vulkan SDK (for `slangc` shader compiler and validation layers)
 
 ### Building
@@ -152,6 +155,10 @@ that case.
 The `textures/` and `models/` directories are copied next to the executable at build time. The specific texture and
 model loaded at runtime are configured via `EngineConfig::texturePath` and `EngineConfig::modelPath`.
 
+Mipmaps are generated at load time from the source texture via `vkCmdBlitImage`. This requires the texture's format
+to support `optimalTilingFeatures.eSampledImageFilterLinear` — the engine throws if it doesn't. (For real-world use,
+mipmaps are typically pre-baked into the texture file rather than generated at runtime.)
+
 ### Running
 
 ```sh
@@ -163,17 +170,18 @@ handle this).
 
 ## Vulkan-Hpp Notes
 
-The project uses `vulkan_raii.h` (header-only path) rather than the C++20 `vulkan_hpp` module. This requires:
+The project uses `vulkan_raii.hpp` (header-only path) rather than the C++20 `vulkan_hpp` module. This requires:
 
 - `VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE` in exactly one TU (`Instance.cpp`).
-- Explicit `VULKAN_HPP_DEFAULT_DISPATCHER.init()` calls in `Instance::createInstance` (pre-instance) and after the instance is created (instance-level functions). `Device` initializes device-level dispatch in its constructor.
+- Explicit `VULKAN_HPP_DEFAULT_DISPATCHER.init()` calls in `Instance::createInstance` (pre-instance) and after the
+  instance is created (instance-level functions). `Device` initializes device-level dispatch in its constructor.
 
 These are set up in `CMakeLists.txt`:
 
 ```cmake
 target_compile_definitions(vlk_engine PRIVATE
-  VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
-  VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
+        VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
+        VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
 )
 ```
 
@@ -201,12 +209,12 @@ Following the Vulkan Tutorial, the next topics are:
 - [x] Texture mapping
 - [x] Depth buffering
 - [x] Model loading
-- [ ] Mipmaps
+- [x] Mipmaps
 - [ ] Multisampling
 
 Each chapter typically extends existing classes (e.g., `Pipeline` grew to accept `PipelineSpec` with vertex inputs
-and descriptor bindings) or adds new ones (e.g., `Buffer`, `Image`, `Sampler`, `Mesh` were each introduced when their
-respective primitives were first needed).
+and descriptor bindings; `Image` grew to handle multiple mip levels and runtime mipmap generation) or adds new ones
+(e.g., `Buffer`, `Image`, `Sampler`, `Mesh` were each introduced when their respective primitives were first needed).
 
 ## Credits
 

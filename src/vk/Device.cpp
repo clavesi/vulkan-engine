@@ -98,6 +98,10 @@ vk::Format Device::findDepthFormat() const {
     );
 }
 
+vk::FormatProperties Device::formatProperties(const vk::Format format) const {
+    return physicalDevice.getFormatProperties(format);
+}
+
 bool Device::isDeviceSuitable(
     const vk::raii::PhysicalDevice &candidate,
     const vk::raii::SurfaceKHR &surf

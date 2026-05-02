@@ -162,6 +162,7 @@ void SwapChain::createDepthResources() {
         device,
         swapChainExtent.width,
         swapChainExtent.height,
+        1,
         chosenDepthFormat,
         vk::ImageTiling::eOptimal,
         vk::ImageUsageFlagBits::eDepthStencilAttachment,

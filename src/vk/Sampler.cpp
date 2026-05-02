@@ -1,7 +1,7 @@
 #include "Sampler.h"
 #include "Device.h"
 
-Sampler::Sampler(const Device &device) {
+Sampler::Sampler(const Device &device, const float maxLod) {
     const auto props = device.properties();
 
     const vk::SamplerCreateInfo info{
@@ -22,7 +22,7 @@ Sampler::Sampler(const Device &device) {
         .compareOp = vk::CompareOp::eAlways,
         // Mipmap range; we don't use mipmaps yet so both are 0
         .minLod = 0.0f,
-        .maxLod = 0.0f,
+        .maxLod = maxLod,
         .borderColor = vk::BorderColor::eIntOpaqueBlack,
         // Use [0, 1] UV coordinates rather than raw pixel coordinates
         .unnormalizedCoordinates = vk::False

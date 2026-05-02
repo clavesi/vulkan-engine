@@ -38,6 +38,8 @@ public:
         vk::FormatFeatureFlags features) const;
     [[nodiscard]] vk::Format findDepthFormat() const;
 
+    [[nodiscard]] vk::FormatProperties formatProperties(vk::Format format) const;
+
 private:
     [[nodiscard]] static bool isDeviceSuitable(
         const vk::raii::PhysicalDevice &candidate,

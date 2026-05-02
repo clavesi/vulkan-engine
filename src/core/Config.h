@@ -8,6 +8,6 @@ struct EngineConfig {
     uint32_t windowHeight = 600;
     std::string windowTitle = "Vulkan";
     std::string shaderPath = "shaders/shader.spv";
-    std::string texturePath = "textures/painterly_cottage.png";
-    std::string modelPath = "models/painterly_cottage.obj";
+    std::string texturePath = "textures/viking_room.png";
+    std::string modelPath = "models/viking_room.obj";
 };

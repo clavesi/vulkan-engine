@@ -7,7 +7,7 @@ class Device;
 class Sampler {
 public:
     // Default-configured sampler suitable for typical 2D textures: linear filtering, repeat addressing, full anisotropy.
-    explicit Sampler(const Device &device);
+    explicit Sampler(const Device &device, float maxLod = 0.0f);
 
     Sampler(const Sampler &) = delete;
     Sampler &operator=(const Sampler &) = delete;
