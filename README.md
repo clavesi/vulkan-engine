@@ -222,4 +222,10 @@ Sample model used during development:
 
 - "Painterly Cottage" by [glenatron](https://sketchfab.com/glenatron) on Sketchfab
   ([source](https://sketchfab.com/3d-models/painterly-cottage-0772aec70d584c60a27000af5f6c1ef4)),
-  licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+  licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/). Removed ground (since we only use 1
+  texture per model for now) and scaled up.
+- "Viking Room" by [nigelgoh](https://sketchfab.com/nigelgoh) on Sketchfab
+  ([source](https://sketchfab.com/3d-models/viking-room-a49f1b8e4f5c4ecf9e1fe7d81915ad38)),
+  licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Used as the sample model in the
+  official Vulkan Tutorial.
+
