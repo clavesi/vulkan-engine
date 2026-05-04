@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Config.h"
+#include "Camera.h"
 #include "Window.h"
 #include "vk/Instance.h"
 #include "vk/Device.h"
@@ -29,6 +30,7 @@ private:
     //   surface   -> created from window + instance; needed by device
     //   device    -> needs instance and surface
     EngineConfig config;
+    Camera camera;
     Window window;
     Instance instance;
     // Use the Window System Integration (WSI) to create a surface to present rendered images to

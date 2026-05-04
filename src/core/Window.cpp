@@ -1,9 +1,9 @@
 #include "Window.h"
 
+#include <vulkan/vulkan_raii.hpp>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#include <vulkan/vulkan_raii.hpp>
 #include <stdexcept>
 
 Window::Window(const uint32_t width, const uint32_t height, const std::string_view title) {
@@ -25,6 +25,9 @@ Window::Window(const uint32_t width, const uint32_t height, const std::string_vi
 
     glfwSetWindowUserPointer(handle, this);
     glfwSetFramebufferSizeCallback(handle, framebufferResizeCallback);
+    glfwSetCursorPosCallback(handle, mouseMoveCallback);
+    glfwSetMouseButtonCallback(handle, mouseButtonCallback);
+    glfwSetScrollCallback(handle, scrollCallback);
 }
 
 Window::~Window() {
@@ -67,7 +70,45 @@ vk::raii::SurfaceKHR Window::createSurface(const vk::raii::Instance &instance) c
     return vk::raii::SurfaceKHR(instance, raw);
 }
 
+void Window::resetFrameInput() {
+    mouseDelta = {0.0f, 0.0f};
+    scrollDelta = 0.0f;
+}
+
 void Window::framebufferResizeCallback(GLFWwindow *window, int width, int height) {
     auto *self = static_cast<Window *>(glfwGetWindowUserPointer(window));
     self->framebufferResized = true;
+}
+
+void Window::mouseMoveCallback(GLFWwindow *w, double x, double y) {
+    auto *self = static_cast<Window *>(glfwGetWindowUserPointer(w));
+
+    const glm::vec2 currentPos = {static_cast<float>(x), static_cast<float>(y)};
+
+    if (self->rightMouseHeld) {
+        self->mouseDelta += currentPos - self->lastMousePos;
+    }
+
+    self->lastMousePos = currentPos;
+}
+
+void Window::mouseButtonCallback(GLFWwindow *w, int button, int action, int mods) {
+    auto *self = static_cast<Window *>(glfwGetWindowUserPointer(w));
+
+    if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+        self->rightMouseHeld = (action == GLFW_PRESS);
+
+        if (self->rightMouseHeld) {
+            // Capture current position so first drag frame has zero delta
+            double x, y;
+            glfwGetCursorPos(w, &x, &y);
+            self->lastMousePos = {static_cast<float>(x), static_cast<float>(y)};
+        }
+    }
+}
+
+void Window::scrollCallback(GLFWwindow *w, double xOffset, double yOffset) {
+    auto *self = static_cast<Window *>(glfwGetWindowUserPointer(w));
+    // yOffset is +1 per scroll tick up, -1 down. xOffset is horizontal scroll (trackpad).
+    self->scrollDelta += static_cast<float>(yOffset);
 }

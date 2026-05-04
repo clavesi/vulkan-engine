@@ -41,6 +41,8 @@ namespace {
 
 Engine::Engine(EngineConfig cfg)
     : config(std::move(cfg)),
+      camera(config.cameraDistance, config.cameraYaw, config.cameraPitch,
+             config.cameraFov, config.cameraNear, config.cameraFar),
       window(config.windowWidth, config.windowHeight, config.windowTitle),
       instance(),
       surface(window.createSurface(instance.get())),
@@ -68,11 +70,23 @@ void Engine::mainLoop() {
     while (!window.shouldClose()) {
         window.pollEvents();
 
-        if (window.wasResized()) {
-            window.resetResizedFlag();
-        }
+        const bool resized = window.wasResized();
+        if (resized) window.resetResizedFlag();
 
-        renderer.drawFrame();
+        // Feed per-frame input to camera
+        camera.onMouseDrag(window.getMouseDelta());
+        camera.onScroll(window.getScrollDelta());
+
+        const auto [width, height] = window.getFramebufferSize();
+        const float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+
+        renderer.drawFrame(
+            camera.getViewMatrix(),
+            camera.getProjectionMatrix(aspectRatio),
+            resized
+        );
+
+        window.resetFrameInput();
     }
     device.waitIdle(); // wait for device to finish operations before destroying resources
 }

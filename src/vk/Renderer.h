@@ -7,6 +7,7 @@
 #include "Sampler.h"
 
 #include <vulkan/vulkan_raii.hpp>
+#include <glm/glm.hpp>
 
 #include <vector>
 #include<optional>
@@ -25,7 +26,7 @@ public:
     // Renders one frame. Handles swapchain recreation on out-of-date.
     // externalResize: set true when the OS reports a resize that Vulkan
     // may not have noticed yet (e.g. via GLFW framebuffer callback).
-    void drawFrame(bool externalResize = false);
+    void drawFrame(glm::mat4 view, glm::mat4 proj, bool externalResize = false);
 
 private:
     // Allows the rendering of one frame to not interfere with the recording of the next.
@@ -44,7 +45,7 @@ private:
     ) const;
     void recordCommandBuffer(uint32_t imageIndex) const;
 
-    void updateUniformBuffer(uint32_t frameIdx) const;
+    void updateUniformBuffer(uint32_t frameIdx, glm::mat4 view, glm::mat4 proj) const;
 
     void createDescriptorPool();
     void createDescriptorSets();

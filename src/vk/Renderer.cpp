@@ -47,7 +47,7 @@ Renderer::Renderer(const Device &device, SwapChain &swapChain, const Pipeline &p
     createDescriptorSets();
 }
 
-void Renderer::drawFrame(const bool externalResize) {
+void Renderer::drawFrame(const glm::mat4 view, const glm::mat4 proj, const bool externalResize) {
     // Note: inFlightFences, presentCompleteSemaphores, and commandBuffers are indexed by frameIndex,
     //       while renderFinishedSemaphores is indexed by imageIndex
     const auto fenceResult = device.logical().waitForFences(*inFlightFences[frameIndex], vk::True, UINT64_MAX);
@@ -76,7 +76,7 @@ void Renderer::drawFrame(const bool externalResize) {
     device.logical().resetFences(*inFlightFences[frameIndex]);
 
     // Refresh the MVP matrices for this frame before recording the draw
-    updateUniformBuffer(frameIndex);
+    updateUniformBuffer(frameIndex, view, proj);
 
     commandBuffers[frameIndex].reset();
     recordCommandBuffer(imageIndex);
@@ -311,39 +311,11 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
     commandBuffer.end();
 }
 
-void Renderer::updateUniformBuffer(const uint32_t frameIdx) const {
-    // Time since program start, used to drive the rotation
-    static auto startTime = std::chrono::high_resolution_clock::now();
-    const auto currentTime = std::chrono::high_resolution_clock::now();
-    const float time = std::chrono::duration<float, std::chrono::seconds::period>(
-        currentTime - startTime).count();
-
-    const auto [width, height] = swapChain.extent();
-
+void Renderer::updateUniformBuffer(const uint32_t frameIdx, const glm::mat4 view, const glm::mat4 proj) const {
     UniformBufferObject ubo{};
-
-    // Spin around the Z axis at 90 degrees per second
-    ubo.model = glm::rotate(
-        glm::mat4(1.0f),
-        time * glm::radians(90.0f),
-        glm::vec3(0.0f, 0.0f, 1.0f)
-    );
-    // Camera at (2,2,2) looking at the origin, with +Z as up
-    ubo.view = glm::lookAt(
-        glm::vec3(2.0f, 2.0f, 2.0f),
-        glm::vec3(0.0f, 0.0f, 0.0f),
-        glm::vec3(0.0f, 0.0f, 1.0f)
-    );
-    // 45-degree perspective, aspect ratio derived from the current swapchain
-    ubo.proj = glm::perspective(
-        glm::radians(45.0f),
-        static_cast<float>(width) /
-        static_cast<float>(height),
-        0.1f,
-        10.0f);
-
-    // GLM was designed for OpenGL; Vulkan's Y is flipped relative to that
-    ubo.proj[1][1] *= -1;
+    ubo.model = glm::mat4(1.0f);
+    ubo.view = view;
+    ubo.proj = proj;
 
     // Write directly into the persistently-mapped buffer for this frame
     std::memcpy(uniformBuffersMapped[frameIdx], &ubo, sizeof(ubo));

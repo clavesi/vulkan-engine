@@ -94,6 +94,7 @@ add_executable(vlk_engine
         src/core/Engine.cpp
         src/core/Window.cpp
         src/core/Mesh.cpp
+        src/core/Camera.cpp
         # Vulkan wrappers
         src/vk/Instance.cpp
         src/vk/Device.cpp
