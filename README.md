@@ -5,10 +5,10 @@ refactored from a single-file application into a modular engine structure.
 
 ## Current Progress
 
-Tutorial progress: **generating mipmaps** (end of the "Generating Mipmaps" chapter).
+Tutorial complete. The engine has worked through every chapter from "Drawing a triangle" through "Multisampling."
 
 The application opens a window and renders a textured 3D model loaded from an OBJ file, with depth buffering,
-runtime-generated mipmaps, and perspective view. It uses dynamic rendering (no render passes), index buffers,
+runtime-generated mipmaps, and multisample anti-aliasing. It uses dynamic rendering (no render passes), index buffers,
 per-frame uniform buffers for MVP matrices, and a combined image sampler descriptor for the texture. Window resize
 and minimize are handled correctly.
 
@@ -16,7 +16,7 @@ and minimize are handled correctly.
 
 ```
 src/
-  main.cpp                  ← Entry point; constructs Engine and runs it
+  main.cpp                    ← Entry point; constructs Engine and runs it
   core/
     Config.h                ← EngineConfig struct (window size, shader paths, model/texture paths, etc.)
     Engine.h/.cpp           ← Top-level composer; owns all subsystems and runs the main loop
@@ -26,8 +26,8 @@ src/
     Mesh.h/.cpp             ← Owns vertex + index Buffer and index count
   vk/
     Instance.h/.cpp         ← Vulkan instance + debug messenger + validation layers
-    Device.h/.cpp           ← Physical device selection + logical device + queue + transient pool + format helpers
-    SwapChain.h/.cpp        ← Swapchain + image views + depth resources + recreation logic
+    Device.h/.cpp           ← Physical device selection + logical device + queue + transient pool + format/sample helpers
+    SwapChain.h/.cpp        ← Swapchain + image views + depth and MSAA color resources + recreation logic
     Pipeline.h/.cpp         ← Graphics pipeline + descriptor set layout + shader module loading
     Buffer.h/.cpp           ← vk::raii::Buffer + DeviceMemory wrapper; upload + staging helpers
     Image.h/.cpp            ← vk::raii::Image + DeviceMemory wrapper; layout transitions, view creation, mipmap generation
@@ -56,14 +56,14 @@ Engine
   ├── Window
   ├── Instance
   ├── SurfaceKHR (raw, from Window + Instance)
-  ├── Device ──────────── needs Instance + Surface
-  ├── SwapChain ───────── needs Device + Window + Surface; owns depth resources
-  ├── Pipeline ────────── needs Device + color/depth formats + descriptor bindings
+  ├── Device ──────────── needs Instance + Surface; exposes maxUsableSampleCount()
+  ├── SwapChain ───────── needs Device + Window + Surface; owns depth + MSAA color resources
+  ├── Pipeline ────────── needs Device + color/depth formats + sample count + descriptor bindings
   └── Renderer ────────── needs Device + SwapChain + Pipeline + EngineConfig
                           (owns Mesh, Image, Sampler internally)
 ```
 
-Construction flows top-down; destruction happens in reverse via RAII. Member declaration order in `Engine.h`
+Construction flows top-down; destruction happens in reverse via RAII. Member declaration order in `Engine.hpp`
 determines both.
 
 ### Resource wrappers
@@ -75,7 +75,8 @@ Three thin classes wrap the Vulkan resource primitives:
   per-frame uniform writes.
 - **`Image`** — pairs `vk::raii::Image` + `vk::raii::DeviceMemory`. Supports layout transitions
   (`transitionLayout`), copying from a staging buffer (`copyFromBuffer`), image view creation (`createView`),
-  and runtime mipmap generation via `vkCmdBlitImage` (`generateMipmaps`). Mip level count is set at construction.
+  and runtime mipmap generation via `vkCmdBlitImage` (`generateMipmaps`). Mip level count and sample count
+  are set at construction.
 - **`Sampler`** — wraps `vk::raii::Sampler` with sensible defaults (linear filtering, anisotropy, repeat addressing,
   linear mipmap interpolation). Takes `maxLod` at construction to control the active mip range.
 
@@ -113,6 +114,16 @@ device.waitIdle();
 `Renderer::drawFrame` handles fences, semaphores, command buffer recording, submission, and presentation. It updates
 the per-frame uniform buffer with new MVP matrices, binds the descriptor set (UBO + texture sampler), and calls
 `swapChain.recreate()` internally when the swapchain becomes out-of-date or when the caller signals a resize.
+
+### Multisampling and dynamic rendering
+
+The engine uses dynamic rendering (Vulkan 1.3) throughout. MSAA is set up by:
+
+- `SwapChain` owning a multisampled color image alongside the depth image, both at `Device::maxUsableSampleCount()`.
+- `Pipeline` rasterizing at the same sample count via `PipelineMultisampleStateCreateInfo::rasterizationSamples`.
+- `Renderer::recordCommandBuffer` setting `resolveMode`, `resolveImageView`, and `resolveImageLayout` on the color
+  attachment's `vk::RenderingAttachmentInfo` — the multisampled image is the render target, the swapchain image is
+  the resolve target.
 
 ## Build
 
@@ -173,15 +184,14 @@ handle this).
 The project uses `vulkan_raii.hpp` (header-only path) rather than the C++20 `vulkan_hpp` module. This requires:
 
 - `VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE` in exactly one TU (`Instance.cpp`).
-- Explicit `VULKAN_HPP_DEFAULT_DISPATCHER.init()` calls in `Instance::createInstance` (pre-instance) and after the
-  instance is created (instance-level functions). `Device` initializes device-level dispatch in its constructor.
+- Explicit `VULKAN_HPP_DEFAULT_DISPATCHER.init()` calls in `Instance::createInstance` (pre-instance) and after the instance is created (instance-level functions). `Device` initializes device-level dispatch in its constructor.
 
 These are set up in `CMakeLists.txt`:
 
 ```cmake
 target_compile_definitions(vlk_engine PRIVATE
-        VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
-        VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
+  VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
+  VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
 )
 ```
 
@@ -201,7 +211,7 @@ Most desktop GPUs from the last few years meet these requirements. Integrated gr
 
 ## Roadmap
 
-Following the Vulkan Tutorial, the next topics are:
+The Vulkan Tutorial is now basically complete:
 
 - [x] Vertex buffers
 - [x] Index buffers
@@ -210,15 +220,11 @@ Following the Vulkan Tutorial, the next topics are:
 - [x] Depth buffering
 - [x] Model loading
 - [x] Mipmaps
-- [ ] Multisampling
-
-Each chapter typically extends existing classes (e.g., `Pipeline` grew to accept `PipelineSpec` with vertex inputs
-and descriptor bindings; `Image` grew to handle multiple mip levels and runtime mipmap generation) or adds new ones
-(e.g., `Buffer`, `Image`, `Sampler`, `Mesh` were each introduced when their respective primitives were first needed).
+- [x] Multisampling
 
 ## Credits
 
-Sample model used during development:
+Sample models used during development:
 
 - "Painterly Cottage" by [glenatron](https://sketchfab.com/glenatron) on Sketchfab
   ([source](https://sketchfab.com/3d-models/painterly-cottage-0772aec70d584c60a27000af5f6c1ef4)),
@@ -228,4 +234,3 @@ Sample model used during development:
   ([source](https://sketchfab.com/3d-models/viking-room-a49f1b8e4f5c4ecf9e1fe7d81915ad38)),
   licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Used as the sample model in the
   official Vulkan Tutorial.
-
