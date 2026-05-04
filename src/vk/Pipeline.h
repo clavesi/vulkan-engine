@@ -15,6 +15,7 @@ struct PipelineSpec {
     std::vector<vk::DescriptorSetLayoutBinding> descriptorBindings;
     vk::Format depthFormat = vk::Format::eUndefined;
     vk::SampleCountFlagBits samples = vk::SampleCountFlagBits::e1;
+    uint32_t pushConstantSize = 0;
 };
 
 class Pipeline {

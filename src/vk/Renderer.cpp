@@ -291,6 +291,15 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
     );
     commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), extent));
 
+    // Push the model matrix for this object
+    constexpr glm::mat4 model = glm::mat4(1.0f);
+    commandBuffer.pushConstants<glm::mat4>(
+        pipeline.layout(),
+        vk::ShaderStageFlagBits::eVertex,
+        0,
+        model
+    );
+
     // Read the count from the buffer.
     commandBuffer.drawIndexed(mesh->indexCount(), 1, 0, 0, 0);
 
@@ -313,11 +322,8 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
 
 void Renderer::updateUniformBuffer(const uint32_t frameIdx, const glm::mat4 view, const glm::mat4 proj) const {
     UniformBufferObject ubo{};
-    ubo.model = glm::mat4(1.0f);
     ubo.view = view;
     ubo.proj = proj;
-
-    // Write directly into the persistently-mapped buffer for this frame
     std::memcpy(uniformBuffersMapped[frameIdx], &ubo, sizeof(ubo));
 }
 

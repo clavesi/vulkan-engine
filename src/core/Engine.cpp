@@ -34,7 +34,8 @@ namespace {
             .attributeDescriptions = {attrs.begin(), attrs.end()},
             .descriptorBindings = {uboBinding, samplerBinding},
             .depthFormat = depthFormat,
-            .samples = samples
+            .samples = samples,
+            .pushConstantSize = sizeof(glm::mat4),
         };
     }
 } // namespace

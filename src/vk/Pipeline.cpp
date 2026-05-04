@@ -112,12 +112,19 @@ Pipeline::Pipeline(const Device &device, const PipelineSpec &spec) {
     };
     descriptorSetLayout = vk::raii::DescriptorSetLayout(device.logical(), descriptorLayoutInfo);
 
+    vk::PushConstantRange pushConstantRange{
+        .stageFlags = vk::ShaderStageFlagBits::eVertex,
+        .offset = 0,
+        .size = spec.pushConstantSize
+    };
+
     // Create final graphics pipeline
     // Pipeline layout references the descriptor set layout so the shader knows where to find its bound resources at draw time
     vk::PipelineLayoutCreateInfo layoutInfo{
         .setLayoutCount = 1,
         .pSetLayouts = &*descriptorSetLayout,
-        .pushConstantRangeCount = 0,
+        .pushConstantRangeCount = spec.pushConstantSize > 0 ? 1u : 0u,
+        .pPushConstantRanges = spec.pushConstantSize > 0 ? &pushConstantRange : nullptr
     };
     pipelineLayout = vk::raii::PipelineLayout(device.logical(), layoutInfo);
 
