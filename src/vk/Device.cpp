@@ -2,6 +2,8 @@
 #include "Instance.h"
 #include "../core/Engine.h"
 
+#include <iostream>
+
 namespace {
     // Store graphics card extensions we require
     const std::vector<const char *> requiredDeviceExtensions = {
@@ -11,6 +13,7 @@ namespace {
 
 Device::Device(const Instance &instance, const vk::raii::SurfaceKHR &surface) {
     pickPhysicalDevice(instance.get(), surface);
+    maxSamples = computeMaxUsableSampleCount();
     createLogicalDevice();
     createTransientCommandPool();
 
@@ -233,4 +236,22 @@ void Device::createTransientCommandPool() {
         .queueFamilyIndex = queueIndex
     };
     transientPool = vk::raii::CommandPool(device, info);
+}
+
+vk::SampleCountFlagBits Device::computeMaxUsableSampleCount() const {
+    const auto props = physicalDevice.getProperties();
+
+    // The highest count supported by BOTH color and depth. Anything else means we couldn't use it for the depth buffer
+    const vk::SampleCountFlags counts = props.limits.framebufferColorSampleCounts &
+                                        props.limits.framebufferDepthSampleCounts;
+
+    using S = vk::SampleCountFlagBits;
+    if (counts & S::e64) return S::e64;
+    if (counts & S::e32) return S::e32;
+    if (counts & S::e16) return S::e16;
+    if (counts & S::e8) return S::e8;
+    if (counts & S::e4) return S::e4;
+    if (counts & S::e2) return S::e2;
+
+    return S::e1;
 }

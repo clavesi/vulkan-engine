@@ -7,7 +7,9 @@ SwapChain::SwapChain(const Device &device,
                      const vk::raii::SurfaceKHR &surface)
     : device(device), window(window), surface(surface) {
     chosenDepthFormat = device.findDepthFormat();
+    msaaSamples = device.maxUsableSampleCount();
     create();
+    createColorResources();
     createDepthResources();
 }
 
@@ -20,7 +22,6 @@ void SwapChain::recreate() {
 
     destroy();
     create();
-    createDepthResources();
 }
 
 void SwapChain::create() {
@@ -77,11 +78,16 @@ void SwapChain::create() {
         viewInfo.image = image;
         swapChainImageViews.emplace_back(device.logical(), viewInfo);
     }
+
+    createColorResources();
+    createDepthResources();
 }
 
 void SwapChain::destroy() {
     depthImageView = nullptr;
     depthImage.reset();
+    colorImageView = nullptr;
+    colorImage.reset();
 
     // Clear the image views before destroying the swap chain since they depend on the swap chain images.
     swapChainImageViews.clear();
@@ -163,6 +169,7 @@ void SwapChain::createDepthResources() {
         swapChainExtent.width,
         swapChainExtent.height,
         1,
+        msaaSamples,
         chosenDepthFormat,
         vk::ImageTiling::eOptimal,
         vk::ImageUsageFlagBits::eDepthStencilAttachment,
@@ -176,4 +183,24 @@ void SwapChain::createDepthResources() {
     depthImage->transitionLayout(
         vk::ImageLayout::eUndefined,
         vk::ImageLayout::eDepthAttachmentOptimal);
+}
+
+
+void SwapChain::createColorResources() {
+    // Color format matches the swapchain so resolve targets the swapchain image directly.
+    // eTransientAttachment hints to tiled GPUs that the contents can stay in tile memory —
+    // we only ever read this image during the in-frame resolve.
+    colorImage.emplace(
+        device,
+        swapChainExtent.width,
+        swapChainExtent.height,
+        1, // no mipmaps (Vulkan disallows mipmaps on multisampled images)
+        msaaSamples,
+        surfaceFormat.format,
+        vk::ImageTiling::eOptimal,
+        vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransientAttachment,
+        vk::MemoryPropertyFlagBits::eDeviceLocal
+    );
+
+    colorImageView = colorImage->createView(vk::ImageAspectFlagBits::eColor);
 }

@@ -6,7 +6,8 @@
 #include "Vertex.h"
 
 namespace {
-    PipelineSpec makeMainPipelineSpec(const std::string &shaderPath, const vk::Format colorFormat, const vk::Format depthFormat) {
+    PipelineSpec makeMainPipelineSpec(const std::string &shaderPath, const vk::Format colorFormat,
+                                      const vk::Format depthFormat, const vk::SampleCountFlagBits samples) {
         const auto attrs = Vertex::getAttributeDescriptions();
 
         // Vertex shader reads MVP matrices from the UBO
@@ -32,7 +33,8 @@ namespace {
             .bindingDescription = Vertex::getBindingDescription(),
             .attributeDescriptions = {attrs.begin(), attrs.end()},
             .descriptorBindings = {uboBinding, samplerBinding},
-            .depthFormat = depthFormat
+            .depthFormat = depthFormat,
+            .samples = samples
         };
     }
 } // namespace
@@ -44,7 +46,10 @@ Engine::Engine(EngineConfig cfg)
       surface(window.createSurface(instance.get())),
       device(instance, surface),
       swapChain(device, window, surface),
-      pipeline(device, makeMainPipelineSpec(config.shaderPath, swapChain.format(), swapChain.depthFormat())),
+      pipeline(
+          device,
+          makeMainPipelineSpec(config.shaderPath, swapChain.format(), swapChain.depthFormat(), swapChain.samples())
+      ),
       renderer(device, swapChain, pipeline, config) {
 }
 

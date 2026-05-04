@@ -37,7 +37,7 @@ private:
     void createCommandBuffers();
     void createSyncObjects();
     void transitionImageLayout(
-        uint32_t imageIndex,
+        vk::Image image,
         vk::ImageLayout oldLayout, vk::ImageLayout newLayout,
         vk::AccessFlags2 srcAccessMask, vk::AccessFlags2 dstAccessMask,
         vk::PipelineStageFlags2 srcStageMask, vk::PipelineStageFlags2 dstStageMask

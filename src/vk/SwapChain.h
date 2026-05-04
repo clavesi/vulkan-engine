@@ -35,6 +35,10 @@ public:
     [[nodiscard]] vk::Format depthFormat() const { return chosenDepthFormat; }
     [[nodiscard]] const vk::raii::ImageView &depthView() const { return depthImageView; }
 
+    vk::Image colorImageHandle() const { return *colorImage->handle(); }
+    vk::raii::ImageView &colorView() { return colorImageView; }
+    vk::SampleCountFlagBits samples() const { return msaaSamples; }
+
 private:
     // FORMERLY: createSwapChain()
     void create();
@@ -47,6 +51,7 @@ private:
     [[nodiscard]] vk::Extent2D chooseExtent(const vk::SurfaceCapabilitiesKHR &caps) const;
 
     void createDepthResources();
+    void createColorResources();
 
     // Stored references — these outlive the SwapChain because the Engine
     // destroys its members in reverse declaration order.
@@ -63,4 +68,10 @@ private:
     vk::Format chosenDepthFormat;
     std::optional<Image> depthImage;
     vk::raii::ImageView depthImageView = nullptr;
+
+    // MSAA color attachment — what the pipeline draws into.
+    // Resolved into the swapchain image at end-of-frame.
+    std::optional<Image> colorImage;
+    vk::raii::ImageView colorImageView = nullptr;
+    vk::SampleCountFlagBits msaaSamples = vk::SampleCountFlagBits::e1;
 };

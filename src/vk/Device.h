@@ -40,6 +40,8 @@ public:
 
     [[nodiscard]] vk::FormatProperties formatProperties(vk::Format format) const;
 
+    vk::SampleCountFlagBits maxUsableSampleCount() const { return maxSamples; }
+
 private:
     [[nodiscard]] static bool isDeviceSuitable(
         const vk::raii::PhysicalDevice &candidate,
@@ -54,6 +56,8 @@ private:
 
     void createTransientCommandPool();
 
+    vk::SampleCountFlagBits computeMaxUsableSampleCount() const;
+
     // Store graphics card
     vk::raii::PhysicalDevice physicalDevice = nullptr;
     // Store logical device handle and features
@@ -65,4 +69,7 @@ private:
 
     // Pool for short-lived command buffers like one-time staging transfers
     vk::raii::CommandPool transientPool = nullptr;
+
+    // Max number of sample points per pixel. 1 is equivalent to no MSAA
+    vk::SampleCountFlagBits maxSamples = vk::SampleCountFlagBits::e1;
 };

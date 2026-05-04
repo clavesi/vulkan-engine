@@ -63,8 +63,9 @@ Pipeline::Pipeline(const Device &device, const PipelineSpec &spec) {
 
     // This struct describes multisampling, one of the ways to perform antialiasing. For now, it's disabled.
     vk::PipelineMultisampleStateCreateInfo multisampling{
-        .rasterizationSamples = vk::SampleCountFlagBits::e1,
-        .sampleShadingEnable = vk::False
+        .rasterizationSamples = spec.samples,
+        .sampleShadingEnable = vk::False,
+
     };
 
     vk::PipelineDepthStencilStateCreateInfo depthStencil = {

@@ -168,7 +168,7 @@ void Renderer::createSyncObjects() {
 
 // Transition image layout to one that's suitable for rendering.
 void Renderer::transitionImageLayout(
-    const uint32_t imageIndex,
+    vk::Image image,
     const vk::ImageLayout oldLayout, const vk::ImageLayout newLayout,
     const vk::AccessFlags2 srcAccessMask, const vk::AccessFlags2 dstAccessMask,
     const vk::PipelineStageFlags2 srcStageMask, const vk::PipelineStageFlags2 dstStageMask
@@ -182,7 +182,7 @@ void Renderer::transitionImageLayout(
         .newLayout = newLayout,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = swapChain.image(imageIndex),
+        .image = image,
         .subresourceRange = {
             .aspectMask = vk::ImageAspectFlagBits::eColor,
             .baseMipLevel = 0,
@@ -208,10 +208,19 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
 
     // Before starting rendering, transition the swapchain image to COLOR_ATTACHMENT_OPTIMAL
     transitionImageLayout(
-        imageIndex,
+        swapChain.image(imageIndex),
         vk::ImageLayout::eUndefined,
         vk::ImageLayout::eColorAttachmentOptimal,
         {}, // srcAccessMask (no need to wait for previous operations)
+        vk::AccessFlagBits2::eColorAttachmentWrite,
+        vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+        vk::PipelineStageFlagBits2::eColorAttachmentOutput
+    );
+    transitionImageLayout(
+        swapChain.colorImageHandle(),
+        vk::ImageLayout::eUndefined,
+        vk::ImageLayout::eColorAttachmentOptimal,
+        {},
         vk::AccessFlagBits2::eColorAttachmentWrite,
         vk::PipelineStageFlagBits2::eColorAttachmentOutput,
         vk::PipelineStageFlagBits2::eColorAttachmentOutput
@@ -222,10 +231,13 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
     constexpr vk::ClearValue clearDepth = vk::ClearDepthStencilValue(1.0f, 0);
 
     vk::RenderingAttachmentInfo colorAttachment = {
-        .imageView = swapChain.imageView(imageIndex),
+        .imageView = *swapChain.colorView(), // multisampled — what we draw INTO
         .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
+        .resolveMode = vk::ResolveModeFlagBits::eAverage, // average the N samples per pixel
+        .resolveImageView = swapChain.imageView(imageIndex), // single-sampled — where the resolve goes
+        .resolveImageLayout = vk::ImageLayout::eColorAttachmentOptimal,
         .loadOp = vk::AttachmentLoadOp::eClear,
-        .storeOp = vk::AttachmentStoreOp::eStore,
+        .storeOp = vk::AttachmentStoreOp::eStore, // store the resolved single-sample result
         .clearValue = clearColor
     };
 
@@ -287,7 +299,7 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
 
     // After rendering, transition the swap chain image to PRESENT_SRC
     transitionImageLayout(
-        imageIndex,
+        swapChain.image(imageIndex),
         vk::ImageLayout::eColorAttachmentOptimal,
         vk::ImageLayout::ePresentSrcKHR,
         vk::AccessFlagBits2::eColorAttachmentWrite,
@@ -443,6 +455,7 @@ void Renderer::createTextureImage() {
         static_cast<uint32_t>(texWidth),
         static_cast<uint32_t>(texHeight),
         mipLevels,
+        vk::SampleCountFlagBits::e1,
         vk::Format::eR8G8B8A8Srgb,
         vk::ImageTiling::eOptimal,
         vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc,

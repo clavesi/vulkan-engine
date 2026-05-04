@@ -9,6 +9,7 @@ public:
     Image(const Device &device,
           uint32_t width, uint32_t height,
           uint32_t mipLevels,
+          vk::SampleCountFlagBits samples,
           vk::Format format,
           vk::ImageTiling tiling,
           vk::ImageUsageFlags usage,
@@ -45,6 +46,7 @@ private:
     const Device &device;
 
     uint32_t mipLevels{};
+    vk::SampleCountFlagBits samples;
 
     vk::raii::Image image = nullptr;
     vk::raii::DeviceMemory memory = nullptr;

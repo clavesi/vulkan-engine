@@ -3,16 +3,17 @@
 #include "Device.h"
 
 Image::Image(const Device &device, const uint32_t width, const uint32_t height,
-             const uint32_t mipLevels, const vk::Format format, const vk::ImageTiling tiling,
-             const vk::ImageUsageFlags usage, const vk::MemoryPropertyFlags properties)
-    : device(device), mipLevels(mipLevels), imageFormat(format), imageWidth(width), imageHeight(height) {
+             const uint32_t mipLevels, vk::SampleCountFlagBits samples, const vk::Format format,
+             const vk::ImageTiling tiling, const vk::ImageUsageFlags usage, const vk::MemoryPropertyFlags properties)
+    : device(device), mipLevels(mipLevels), samples(samples),
+      imageFormat(format), imageWidth(width), imageHeight(height) {
     const vk::ImageCreateInfo imageInfo{
         .imageType = vk::ImageType::e2D,
         .format = format,
         .extent = {width, height, 1},
         .mipLevels = mipLevels,
         .arrayLayers = 1,
-        .samples = vk::SampleCountFlagBits::e1,
+        .samples = samples,
         .tiling = tiling,
         .usage = usage,
         .sharingMode = vk::SharingMode::eExclusive,
@@ -146,7 +147,7 @@ void Image::generateMipmaps(vk::Format format, int32_t texWidth, int32_t texHeig
 
     for (uint32_t i = 1; i < mipLevels; i++) {
         // Transition level i-1 from eTransferDstOptimal to eTransferSrcOptimal so we can blit from it.
-        // Waits on the previous blit's write (or the intiial buffer copy for i=1)
+        // Waits on the previous blit's write (or the initial buffer copy for i=1)
         barrier.subresourceRange.baseMipLevel = i - 1;
         barrier.oldLayout = vk::ImageLayout::eTransferDstOptimal;
         barrier.newLayout = vk::ImageLayout::eTransferSrcOptimal;

@@ -14,6 +14,7 @@ struct PipelineSpec {
     // Descriptors the shader expects (uniform buffers, samplers, etc.)
     std::vector<vk::DescriptorSetLayoutBinding> descriptorBindings;
     vk::Format depthFormat = vk::Format::eUndefined;
+    vk::SampleCountFlagBits samples = vk::SampleCountFlagBits::e1;
 };
 
 class Pipeline {
