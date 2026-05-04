@@ -211,20 +211,20 @@ void Image::generateMipmaps(vk::Format format, int32_t texWidth, int32_t texHeig
         // Halve dims for the next iteration; clamp at 1 so non-square images don't go to 0
         if (mipWidth > 1) mipWidth /= 2;
         if (mipHeight > 1) mipHeight /= 2;
-
-        // Final mip level was never blitted from, so it's still in eTransferDstOptimal — transition it now
-        barrier.subresourceRange.baseMipLevel = mipLevels - 1;
-        barrier.oldLayout = vk::ImageLayout::eTransferDstOptimal;
-        barrier.newLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-        barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
-        barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
-
-        cmd.pipelineBarrier(
-            vk::PipelineStageFlagBits::eTransfer,
-            vk::PipelineStageFlagBits::eFragmentShader,
-            {}, {}, {}, barrier
-        );
-
-        device.endSingleTimeCommands(cmd);
     }
+
+    // Final mip level was never blitted from, so it's still in eTransferDstOptimal — transition it now
+    barrier.subresourceRange.baseMipLevel = mipLevels - 1;
+    barrier.oldLayout = vk::ImageLayout::eTransferDstOptimal;
+    barrier.newLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+    barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
+    barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+
+    cmd.pipelineBarrier(
+        vk::PipelineStageFlagBits::eTransfer,
+        vk::PipelineStageFlagBits::eFragmentShader,
+        {}, {}, {}, barrier
+    );
+
+    device.endSingleTimeCommands(cmd);
 }
