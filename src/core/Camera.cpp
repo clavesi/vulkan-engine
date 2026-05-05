@@ -12,8 +12,8 @@ Camera::Camera(const float distance, const float yaw, const float pitch,
 }
 
 void Camera::onMouseDrag(const glm::vec2 delta) {
-    yaw += delta.x * orbitSensitivity;
-    pitch += delta.y * orbitSensitivity;
+    yaw -= delta.x * orbitSensitivity; // horizontal
+    pitch += delta.y * orbitSensitivity; // vertical
 
     // Clamp pitch so the camera doesn't flip over the poles
     pitch = std::clamp(pitch, pitchMin, pitchMax);
