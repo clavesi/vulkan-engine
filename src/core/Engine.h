@@ -44,7 +44,8 @@ private:
     vk::raii::SurfaceKHR surface;
     Device device;
     SwapChain swapChain;
-    Pipeline pipeline;
+    Pipeline pipeline; // lit
+    Pipeline unlitPipeline; // unlit
     std::vector<Mesh> meshes; // owns mesh data
     Renderer renderer; // holds raw pointers into meshes
 };

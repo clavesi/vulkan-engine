@@ -56,6 +56,10 @@ Engine::Engine(EngineConfig cfg)
           device,
           makeMainPipelineSpec(config.shaderPath, swapChain.format(), swapChain.depthFormat(), swapChain.samples())
       ),
+      unlitPipeline(
+          device,
+          makeMainPipelineSpec(config.unlitShaderPath, swapChain.format(), swapChain.depthFormat(), swapChain.samples())
+      ),
       renderer(device, swapChain, pipeline, config) {
     buildScene();
 }
