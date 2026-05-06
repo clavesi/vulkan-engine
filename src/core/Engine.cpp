@@ -18,7 +18,7 @@ namespace {
             0,
             vk::DescriptorType::eUniformBuffer,
             1,
-            vk::ShaderStageFlagBits::eVertex,
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
             nullptr
         };
 
@@ -88,6 +88,8 @@ void Engine::mainLoop() {
         renderer.drawFrame(
             camera.getViewMatrix(),
             camera.getProjectionMatrix(aspectRatio),
+            glm::vec3{5.0f, 5.0f, 5.0f}, // light (sun)
+            camera.getPosition(),
             resized
         );
 

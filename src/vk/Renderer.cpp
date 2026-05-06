@@ -42,7 +42,11 @@ Renderer::Renderer(const Device &device, SwapChain &swapChain, const Pipeline &p
     createDescriptorSets();
 }
 
-void Renderer::drawFrame(const glm::mat4 view, const glm::mat4 proj, const bool externalResize) {
+void Renderer::drawFrame(
+    const glm::mat4 view, const glm::mat4 proj,
+    const glm::vec3 lightPos, const glm::vec3 cameraPos,
+    const bool externalResize
+) {
     // Note: inFlightFences, presentCompleteSemaphores, and commandBuffers are indexed by frameIndex,
     //       while renderFinishedSemaphores is indexed by imageIndex
     const auto fenceResult = device.logical().waitForFences(*inFlightFences[frameIndex], vk::True, UINT64_MAX);
@@ -71,7 +75,11 @@ void Renderer::drawFrame(const glm::mat4 view, const glm::mat4 proj, const bool 
     device.logical().resetFences(*inFlightFences[frameIndex]);
 
     // Refresh the MVP matrices for this frame before recording the draw
-    updateUniformBuffer(frameIndex, view, proj);
+    updateUniformBuffer(
+        frameIndex, view, proj,
+        glm::vec4(lightPos.x, lightPos.y, lightPos.z, 0.0f),
+        glm::vec4(cameraPos.x, cameraPos.y, cameraPos.z, 0.0f)
+    );
 
     commandBuffers[frameIndex].reset();
     recordCommandBuffer(imageIndex);
@@ -316,10 +324,15 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
     commandBuffer.end();
 }
 
-void Renderer::updateUniformBuffer(const uint32_t frameIdx, const glm::mat4 view, const glm::mat4 proj) const {
+void Renderer::updateUniformBuffer(
+    const uint32_t frameIdx, const glm::mat4 view, const glm::mat4 proj,
+    const glm::vec4 lightPos, const glm::vec4 cameraPos
+) const {
     UniformBufferObject ubo{};
     ubo.view = view;
     ubo.proj = proj;
+    ubo.lightPos = lightPos;
+    ubo.cameraPos = cameraPos;
     std::memcpy(uniformBuffersMapped[frameIdx], &ubo, sizeof(ubo));
 }
 

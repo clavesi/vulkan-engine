@@ -27,7 +27,11 @@ public:
     // Renders one frame. Handles swapchain recreation on out-of-date.
     // externalResize: set true when the OS reports a resize that Vulkan
     // may not have noticed yet (e.g. via GLFW framebuffer callback).
-    void drawFrame(glm::mat4 view, glm::mat4 proj, bool externalResize = false);
+    void drawFrame(
+        glm::mat4 view, glm::mat4 proj,
+        glm::vec3 lightPos, glm::vec3 cameraPos,
+        bool externalResize = false
+    );
 
     // Add a mesh to the scene with a given transform.
     // Returns a reference to the RenderObject so the caller can update its transform later.
@@ -50,7 +54,10 @@ private:
     ) const;
     void recordCommandBuffer(uint32_t imageIndex) const;
 
-    void updateUniformBuffer(uint32_t frameIdx, glm::mat4 view, glm::mat4 proj) const;
+    void updateUniformBuffer(
+        uint32_t frameIdx, glm::mat4 view, glm::mat4 proj,
+        glm::vec4 lightPos, glm::vec4 cameraPos
+    ) const;
 
     void createDescriptorPool();
     void createDescriptorSets();
