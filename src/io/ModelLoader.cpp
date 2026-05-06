@@ -34,6 +34,17 @@ namespace io {
                     attrib.vertices[3 * index.vertex_index + 2]
                 };
 
+                // Load normal if present, otherwise default to zero
+                if (index.normal_index >= 0) {
+                    vertex.normal = {
+                        attrib.normals[3 * index.normal_index + 0],
+                        attrib.normals[3 * index.normal_index + 1],
+                        attrib.normals[3 * index.normal_index + 2]
+                    };
+                } else {
+                    vertex.normal = {0.0f, 0.0f, 0.0f};
+                }
+
                 // OBJ's V origin is bottom-left; Vulkan's is top-left, so flip
                 vertex.texCoord = {
                     attrib.texcoords[2 * index.texcoord_index + 0],

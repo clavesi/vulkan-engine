@@ -3,6 +3,9 @@
 #include <fstream>
 
 #define GLFW_INCLUDE_VULKAN
+#include <iostream>
+
+#include "core/MeshGenerator.h"
 #include "Vertex.h"
 
 namespace {
@@ -94,11 +97,16 @@ void Engine::mainLoop() {
 }
 
 void Engine::buildScene() {
-    // Load the model from config
-    auto [vertices,indices] = io::loadObj(config.modelPath);
-    meshes.emplace_back(device, vertices, indices);
+    // // Load the model from config
+    // auto [vertices,indices] = io::loadObj(config.modelPath);
+    // meshes.emplace_back(device, vertices, indices);
+    // // Add it to the scene at the origin with no transform
+    // renderer.addObject(meshes.back());
+    // renderer.addObject(meshes.back(), Transform{.position = {2.0f, 0.0f, 0.0f}});
 
-    // Add it to the scene at the origin with no transform
+    auto [vertices, indices] = MeshGenerator::sphere(1.0f, 32, 32);
+    meshes.emplace_back(device, vertices, indices);
     renderer.addObject(meshes.back());
-    renderer.addObject(meshes.back(), Transform{.position = {2.0f, 0.0f, 0.0f}});
+    // Second sphere offset to the side
+    renderer.addObject(meshes.back(), Transform{.position = {3.0f, 0.0f, 0.0f}});
 }

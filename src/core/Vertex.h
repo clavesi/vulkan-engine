@@ -1,7 +1,6 @@
 #pragma once
 
-#include "UniformBufferObject.h"
-
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
@@ -9,6 +8,7 @@
 
 struct Vertex {
     glm::vec3 pos;
+    glm::vec3 normal;
     glm::vec3 color;
     glm::vec2 texCoord;
 
@@ -21,20 +21,33 @@ struct Vertex {
         };
     }
 
-    // Describes how to extract a vertex attribute from a chunk of vertex data
-    // from a binding description
-    static std::array<vk::VertexInputAttributeDescription, 3> getAttributeDescriptions() {
+    // Describes how to extract a vertex attribute from a chunk of vertex data from a binding description
+    static std::array<vk::VertexInputAttributeDescription, 4> getAttributeDescriptions() {
         return {
             {
-                {.location = 0, .binding = 0, .format = vk::Format::eR32G32B32Sfloat, .offset = offsetof(Vertex, pos)},
-                {.location = 1, .binding = 0, .format = vk::Format::eR32G32B32Sfloat, .offset = offsetof(Vertex, color)},
-                {.location = 2, .binding = 0, .format = vk::Format::eR32G32Sfloat, .offset = offsetof(Vertex, texCoord)}
+                {
+                    .location = 0, .binding = 0, .format = vk::Format::eR32G32B32Sfloat,
+                    .offset = offsetof(Vertex, pos)
+                },
+                {
+                    .location = 1, .binding = 0, .format = vk::Format::eR32G32B32Sfloat,
+                    .offset = offsetof(Vertex, normal)
+                },
+                {
+                    .location = 2, .binding = 0, .format = vk::Format::eR32G32B32Sfloat,
+                    .offset = offsetof(Vertex, color)
+                },
+                {
+                    .location = 3, .binding = 0, .format = vk::Format::eR32G32Sfloat,
+                    .offset = offsetof(Vertex, texCoord)
+                },
             }
         };
     }
 
     bool operator==(const Vertex &other) const {
         return pos == other.pos
+               && normal == other.normal
                && color == other.color
                && texCoord == other.texCoord;
     }
@@ -47,7 +60,8 @@ namespace std {
     struct hash<Vertex> {
         size_t operator()(const Vertex &v) const noexcept {
             return ((hash<glm::vec3>()(v.pos)
-                     ^ (hash<glm::vec3>()(v.color) << 1)) >> 1)
+                     ^ (hash<glm::vec3>()(v.normal) << 1)) >> 1)
+                   ^ ((hash<glm::vec3>()(v.color) << 1) >> 1)
                    ^ (hash<glm::vec2>()(v.texCoord) << 1);
         }
     };

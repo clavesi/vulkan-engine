@@ -1,5 +1,6 @@
 struct VSInput {
     float3 inPos;
+    float3 inNormal;
     float3 inColor;
     float2 inTexCoord;
 };
@@ -22,6 +23,7 @@ Sampler2D texture;
 
 struct VSOutput {
     float4 pos : SV_Position;
+    float3 fragNormal;
     float3 fragColor;
     float2 fragTexCoord;
 };
@@ -30,6 +32,7 @@ struct VSOutput {
 VSOutput vertMain(VSInput input) {
     VSOutput output;
     output.pos = mul(ubo.proj, mul(ubo.view, mul(push.model, float4(input.inPos, 1.0))));
+    output.fragNormal = input.inNormal;
     output.fragColor = input.inColor;
     output.fragTexCoord = input.inTexCoord;
     return output;
