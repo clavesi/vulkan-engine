@@ -41,9 +41,9 @@ find_package(tinyobjloader CONFIG REQUIRED)
 
 # Shader compilation with Slang (optional, but preferred when slangc is available)
 # Use a relative glob pattern so paths like "[0]Vulkan" do not interfere with matching.
-file(GLOB SLANG_SHADER_SOURCES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "shaders/*.slang")
-if (NOT SLANG_SHADER_SOURCES AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/shader.slang")
-    set(SLANG_SHADER_SOURCES "shaders/shader.slang")
+file(GLOB SLANG_SHADER_SOURCES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "shaders/*.hlsl")
+if (NOT SLANG_SHADER_SOURCES AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/shader.hlsl")
+    set(SLANG_SHADER_SOURCES "shaders/shader.hlsl")
 endif ()
 find_program(SLANGC_EXECUTABLE slangc HINTS "$ENV{VULKAN_SDK}/bin")
 
