@@ -88,26 +88,30 @@ add_executable(vlk_engine
         # Main
         src/main.cpp
         # IO
-        src/io/FileIO.cpp
-        src/io/ModelLoader.cpp
+        src/engine/io/FileIO.cpp
+        src/engine/io/ModelLoader.cpp
         # Core
-        src/core/Engine.cpp
-        src/core/Window.cpp
-        src/core/Camera.cpp
-        src/core/Scene.cpp
-        src/core/Mesh.cpp
-        src/core/MeshGenerator.cpp
+        src/engine/core/Engine.cpp
+        src/engine/core/Window.cpp
+        src/engine/core/Camera.cpp
+        src/engine/core/Scene.cpp
+        src/engine/core/Mesh.cpp
+        src/engine/core/MeshGenerator.cpp
         # Vulkan wrappers
-        src/vk/Instance.cpp
-        src/vk/Device.cpp
-        src/vk/SwapChain.cpp
-        src/vk/Pipeline.cpp
-        src/vk/Buffer.cpp
-        src/vk/Image.cpp
-        src/vk/Sampler.cpp
-        src/vk/Renderer.cpp
+        src/engine/vk/Instance.cpp
+        src/engine/vk/Device.cpp
+        src/engine/vk/SwapChain.cpp
+        src/engine/vk/Pipeline.cpp
+        src/engine/vk/Buffer.cpp
+        src/engine/vk/Image.cpp
+        src/engine/vk/Sampler.cpp
+        src/engine/vk/Renderer.cpp
 )
-target_include_directories(vlk_engine PRIVATE src)
+target_include_directories(vlk_engine PRIVATE
+        src
+        src/engine
+        src/app
+)
 add_dependencies(vlk_engine shaders)
 
 # Prefer imported target include propagation; fallback to module variable.
