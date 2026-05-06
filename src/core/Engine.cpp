@@ -100,7 +100,7 @@ void Engine::mainLoop() {
         renderer.drawFrame(
             camera.getViewMatrix(),
             camera.getProjectionMatrix(aspectRatio),
-            glm::vec3{5.0f, 5.0f, 5.0f}, // light (sun)
+            glm::vec3{0.0f, 0.0f, 0.0f}, // light (sun)
             camera.getPosition(),
             resized
         );
@@ -118,19 +118,19 @@ void Engine::initScene() {
     const Mesh &sphere = meshes.back();
 
     // Sun - stationary, unlit
-    scene.addObject(sphere, unlitPipeline, Transform{});
+    scene.addObject(sphere, unlitPipeline, Transform{.scale = {4.0f, 4.0f, 4.0f}});
 
     // Planet 1 — orbits at radius 3, one full revolution per 5 seconds
     scene.addObject(
         sphere, pipeline,
-        Transform{.position = {10.0f, 0.0f, 0.0f}},
+        Transform{.position = {10.0f, 0.0f, 0.0f}, .scale = {0.5f, 0.5f, 0.5f}},
         OrbitalBody{.radius = 10.0f, .speed = glm::two_pi<float>() / 5.0f}
     );
 
     // Planet 2 — orbits at radius 5, one full revolution per 10 seconds
     scene.addObject(
         sphere, pipeline,
-        Transform{.position = {30.0f, 0.0f, 0.0f}},
+        Transform{.position = {30.0f, 0.0f, 0.0f}, .scale = {1.0f, 1.0f, 1.0f}},
         OrbitalBody{.radius = 30.0f, .speed = glm::two_pi<float>() / 10.0f}
     );
 }

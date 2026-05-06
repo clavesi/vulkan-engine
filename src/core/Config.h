@@ -13,7 +13,7 @@ struct EngineConfig {
     std::string modelPath = "models/viking_room.obj";
 
     // Camera initial state
-    float cameraDistance = 3.0f;
+    float cameraDistance = 50.0f;
     float cameraYaw = 0.0f;
     float cameraPitch = 0.3f; // slight downward tilt to see the model
     float cameraFov = 45.0f;
