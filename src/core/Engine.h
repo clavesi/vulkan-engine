@@ -8,8 +8,12 @@
 #include "vk/SwapChain.h"
 #include "vk/Pipeline.h"
 #include "vk/Renderer.h"
+#include "core/Mesh.h"
+#include "io/ModelLoader.h"
 
 #include <vulkan/vulkan_raii.hpp>
+
+#include <vector>
 
 class Engine {
 public:
@@ -23,6 +27,8 @@ public:
 
 private:
     void mainLoop();
+
+    void buildScene();
 
     // Declaration order = construction order.
     //   window    -> needed for surface and for getting framebuffer size
@@ -39,5 +45,6 @@ private:
     Device device;
     SwapChain swapChain;
     Pipeline pipeline;
-    Renderer renderer;
+    std::vector<Mesh> meshes; // owns mesh data
+    Renderer renderer; // holds raw pointers into meshes
 };

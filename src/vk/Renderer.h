@@ -2,6 +2,7 @@
 
 #include "core/Config.h"
 #include "core/Mesh.h"
+#include "core/RenderObject.h"
 #include "Buffer.h"
 #include "Image.h"
 #include "Sampler.h"
@@ -27,6 +28,10 @@ public:
     // externalResize: set true when the OS reports a resize that Vulkan
     // may not have noticed yet (e.g. via GLFW framebuffer callback).
     void drawFrame(glm::mat4 view, glm::mat4 proj, bool externalResize = false);
+
+    // Add a mesh to the scene with a given transform.
+    // Returns a reference to the RenderObject so the caller can update its transform later.
+    RenderObject &addObject(const Mesh &mesh, Transform transform = {});
 
 private:
     // Allows the rendering of one frame to not interfere with the recording of the next.
@@ -76,7 +81,7 @@ private:
     // One descriptor set per frame in flight, each pointing at that frame's uniform buffer
     std::vector<vk::raii::DescriptorSet> descriptorSets;
 
-    std::optional<Mesh> mesh;
+    std::vector<RenderObject> renderObjects;
 
     std::optional<Image> textureImage;
     vk::raii::ImageView textureImageView = nullptr;

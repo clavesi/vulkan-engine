@@ -54,6 +54,7 @@ Engine::Engine(EngineConfig cfg)
           makeMainPipelineSpec(config.shaderPath, swapChain.format(), swapChain.depthFormat(), swapChain.samples())
       ),
       renderer(device, swapChain, pipeline, config) {
+    buildScene();
 }
 
 Engine::~Engine() {
@@ -90,4 +91,14 @@ void Engine::mainLoop() {
         window.resetFrameInput();
     }
     device.waitIdle(); // wait for device to finish operations before destroying resources
+}
+
+void Engine::buildScene() {
+    // Load the model from config
+    auto [vertices,indices] = io::loadObj(config.modelPath);
+    meshes.emplace_back(device, vertices, indices);
+
+    // Add it to the scene at the origin with no transform
+    renderer.addObject(meshes.back());
+    renderer.addObject(meshes.back(), Transform{.position = {2.0f, 0.0f, 0.0f}});
 }

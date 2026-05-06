@@ -1,4 +1,3 @@
-#include "io/ModelLoader.h"
 #include "Renderer.h"
 #include "Device.h"
 #include "SwapChain.h"
@@ -19,10 +18,6 @@ Renderer::Renderer(const Device &device, SwapChain &swapChain, const Pipeline &p
       swapChain(swapChain),
       pipeline(pipeline),
       config(config) {
-    // Load model from disk and upload to GPU
-    auto [vertices, indices] = io::loadObj(config.modelPath);
-    mesh.emplace(device, vertices, indices);
-
     createTextureImage();
     createCommandPool();
     createCommandBuffers();
@@ -123,6 +118,10 @@ void Renderer::drawFrame(const glm::mat4 view, const glm::mat4 proj, const bool 
     }
 
     frameIndex = (frameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+}
+
+RenderObject &Renderer::addObject(const Mesh &mesh, Transform transform) {
+    return renderObjects.emplace_back(RenderObject{&mesh, transform});
 }
 
 void Renderer::createCommandPool() {
@@ -260,15 +259,8 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
 
     // Begin rendering
     commandBuffer.beginRendering(renderingInfo);
-
     // Rendering commands will go here
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline.handle());
-
-    // bind the vertex buffer at binding 0 with offset 0
-    constexpr vk::DeviceSize offset = 0;
-    commandBuffer.bindVertexBuffers(0, *mesh->vertexBuffer().handle(), offset);
-    // bind the index buffer
-    commandBuffer.bindIndexBuffer(*mesh->indexBuffer().handle(), 0, vk::IndexType::eUint32);
 
     // Bind this frame's descriptor set so the shader can find its uniform buffer
     commandBuffer.bindDescriptorSets(
@@ -291,17 +283,21 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
     );
     commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), extent));
 
-    // Push the model matrix for this object
-    constexpr glm::mat4 model = glm::mat4(1.0f);
-    commandBuffer.pushConstants<glm::mat4>(
-        pipeline.layout(),
-        vk::ShaderStageFlagBits::eVertex,
-        0,
-        model
-    );
+    constexpr vk::DeviceSize offset = 0;
+    for (const auto &[mesh, transform]: renderObjects) {
+        // Push the model matrix for this object
+        const glm::mat4 model = transform.matrix();
+        commandBuffer.pushConstants<glm::mat4>(
+            pipeline.layout(),
+            vk::ShaderStageFlagBits::eVertex,
+            0,
+            model
+        );
 
-    // Read the count from the buffer.
-    commandBuffer.drawIndexed(mesh->indexCount(), 1, 0, 0, 0);
+        commandBuffer.bindVertexBuffers(0, *mesh->vertexBuffer().handle(), offset);
+        commandBuffer.bindIndexBuffer(*mesh->indexBuffer().handle(), 0, vk::IndexType::eUint32);
+        commandBuffer.drawIndexed(mesh->indexCount(), 1, 0, 0, 0);
+    }
 
     // End rendering
     commandBuffer.endRendering();
