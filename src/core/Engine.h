@@ -9,7 +9,7 @@
 #include "vk/Pipeline.h"
 #include "vk/Renderer.h"
 #include "core/Mesh.h"
-#include "io/ModelLoader.h"
+#include "core/Scene.h"
 
 #include <vulkan/vulkan_raii.hpp>
 
@@ -28,7 +28,7 @@ public:
 private:
     void mainLoop();
 
-    void buildScene();
+    void initScene();
 
     // Declaration order = construction order.
     //   window    -> needed for surface and for getting framebuffer size
@@ -47,5 +47,6 @@ private:
     Pipeline pipeline; // lit
     Pipeline unlitPipeline; // unlit
     std::vector<Mesh> meshes; // owns mesh data
+    Scene scene;
     Renderer renderer; // holds raw pointers into meshes
 };

@@ -3,6 +3,7 @@
 #include "core/Config.h"
 #include "core/Mesh.h"
 #include "core/RenderObject.h"
+#include "core/Scene.h"
 #include "Buffer.h"
 #include "Image.h"
 #include "Sampler.h"
@@ -19,7 +20,13 @@ class Pipeline;
 
 class Renderer {
 public:
-    Renderer(const Device &device, SwapChain &swapChain, const Pipeline &pipeline, const EngineConfig &config);
+    Renderer(
+        const Device &device,
+        SwapChain &swapChain,
+        const Pipeline &pipeline,
+        const EngineConfig &config,
+        const Scene &scene
+    );
 
     Renderer(const Renderer &) = delete;
     Renderer &operator=(const Renderer &) = delete;
@@ -32,10 +39,6 @@ public:
         glm::vec3 lightPos, glm::vec3 cameraPos,
         bool externalResize = false
     );
-
-    // Add a mesh to the scene with a given transform.
-    // Returns a reference to the RenderObject so the caller can update its transform later.
-    RenderObject &addObject(const Mesh &mesh, Transform transform = {});
 
 private:
     // Allows the rendering of one frame to not interfere with the recording of the next.
@@ -68,6 +71,7 @@ private:
     SwapChain &swapChain; // non-const because drawFrame may trigger recreate()
     const Pipeline &pipeline;
     const EngineConfig &config;
+    const Scene& scene;
 
     // Manage memory used to store buffers and command buffers allocated from them
     vk::raii::CommandPool commandPool = nullptr;
@@ -87,8 +91,6 @@ private:
     vk::raii::DescriptorPool descriptorPool = nullptr;
     // One descriptor set per frame in flight, each pointing at that frame's uniform buffer
     std::vector<vk::raii::DescriptorSet> descriptorSets;
-
-    std::vector<RenderObject> renderObjects;
 
     std::optional<Image> textureImage;
     vk::raii::ImageView textureImageView = nullptr;

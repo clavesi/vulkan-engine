@@ -13,11 +13,15 @@
 #include <stdexcept>
 #include <chrono>
 
-Renderer::Renderer(const Device &device, SwapChain &swapChain, const Pipeline &pipeline, const EngineConfig &config)
+Renderer::Renderer(
+    const Device &device, SwapChain &swapChain, const Pipeline &pipeline,
+    const EngineConfig &config, const Scene &scene
+)
     : device(device),
       swapChain(swapChain),
       pipeline(pipeline),
-      config(config) {
+      config(config),
+      scene(scene) {
     createTextureImage();
     createCommandPool();
     createCommandBuffers();
@@ -126,10 +130,6 @@ void Renderer::drawFrame(
     }
 
     frameIndex = (frameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
-}
-
-RenderObject &Renderer::addObject(const Mesh &mesh, Transform transform) {
-    return renderObjects.emplace_back(RenderObject{&mesh, transform});
 }
 
 void Renderer::createCommandPool() {
@@ -267,17 +267,6 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
 
     // Begin rendering
     commandBuffer.beginRendering(renderingInfo);
-    // Rendering commands will go here
-    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline.handle());
-
-    // Bind this frame's descriptor set so the shader can find its uniform buffer
-    commandBuffer.bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics,
-        pipeline.layout(),
-        0, // first set
-        *descriptorSets[frameIndex],
-        nullptr // dynamic offsets, unused
-    );
 
     const auto extent = swapChain.extent();
     commandBuffer.setViewport(
@@ -291,20 +280,32 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
     );
     commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), extent));
 
-    constexpr vk::DeviceSize offset = 0;
-    for (const auto &[mesh, transform]: renderObjects) {
+    for (const auto &obj: scene.getObjects()) {
+        // Bind this object's pipeline
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, obj.pipeline->handle());
+
+        // Descriptor set must be bound after pipeline
+        commandBuffer.bindDescriptorSets(
+            vk::PipelineBindPoint::eGraphics,
+            obj.pipeline->layout(),
+            0,
+            *descriptorSets[frameIndex],
+            nullptr
+        );
+
         // Push the model matrix for this object
-        const glm::mat4 model = transform.matrix();
+        const glm::mat4 model = obj.transform.matrix();
         commandBuffer.pushConstants<glm::mat4>(
-            pipeline.layout(),
+            obj.pipeline->layout(),
             vk::ShaderStageFlagBits::eVertex,
             0,
             model
         );
 
-        commandBuffer.bindVertexBuffers(0, *mesh->vertexBuffer().handle(), offset);
-        commandBuffer.bindIndexBuffer(*mesh->indexBuffer().handle(), 0, vk::IndexType::eUint32);
-        commandBuffer.drawIndexed(mesh->indexCount(), 1, 0, 0, 0);
+        constexpr vk::DeviceSize offset = 0;
+        commandBuffer.bindVertexBuffers(0, *obj.mesh->vertexBuffer().handle(), offset);
+        commandBuffer.bindIndexBuffer(*obj.mesh->indexBuffer().handle(), 0, vk::IndexType::eUint32);
+        commandBuffer.drawIndexed(obj.mesh->indexCount(), 1, 0, 0, 0);
     }
 
     // End rendering

@@ -1,12 +1,11 @@
 #include "Engine.h"
 
-#include <fstream>
+#include <chrono>
 
-#define GLFW_INCLUDE_VULKAN
-#include <iostream>
-
-#include "core/MeshGenerator.h"
 #include "Vertex.h"
+#include "core/MeshGenerator.h"
+
+#include <fstream>
 
 namespace {
     PipelineSpec makeMainPipelineSpec(const std::string &shaderPath, const vk::Format colorFormat,
@@ -60,8 +59,8 @@ Engine::Engine(EngineConfig cfg)
           device,
           makeMainPipelineSpec(config.unlitShaderPath, swapChain.format(), swapChain.depthFormat(), swapChain.samples())
       ),
-      renderer(device, swapChain, pipeline, config) {
-    buildScene();
+      renderer(device, swapChain, pipeline, config, scene) {
+    initScene();
 }
 
 Engine::~Engine() {
@@ -76,7 +75,14 @@ void Engine::run() {
 }
 
 void Engine::mainLoop() {
+    auto lastTime = std::chrono::high_resolution_clock::now();
+
     while (!window.shouldClose()) {
+        // Delta time
+        const auto currentTime = std::chrono::high_resolution_clock::now();
+        const float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
+        lastTime = currentTime;
+
         window.pollEvents();
 
         const bool resized = window.wasResized();
@@ -85,6 +91,8 @@ void Engine::mainLoop() {
         // Feed per-frame input to camera
         camera.onMouseDrag(window.getMouseDelta());
         camera.onScroll(window.getScrollDelta());
+
+        scene.update(deltaTime);
 
         const auto [width, height] = window.getFramebufferSize();
         const float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
@@ -99,20 +107,30 @@ void Engine::mainLoop() {
 
         window.resetFrameInput();
     }
-    device.waitIdle(); // wait for device to finish operations before destroying resources
+
+    device.waitIdle();
 }
 
-void Engine::buildScene() {
-    // // Load the model from config
-    // auto [vertices,indices] = io::loadObj(config.modelPath);
-    // meshes.emplace_back(device, vertices, indices);
-    // // Add it to the scene at the origin with no transform
-    // renderer.addObject(meshes.back());
-    // renderer.addObject(meshes.back(), Transform{.position = {2.0f, 0.0f, 0.0f}});
-
+void Engine::initScene() {
+    // Load mesh
     auto [vertices, indices] = MeshGenerator::sphere(1.0f, 32, 32);
     meshes.emplace_back(device, vertices, indices);
-    renderer.addObject(meshes.back());
-    // Second sphere offset to the side
-    renderer.addObject(meshes.back(), Transform{.position = {3.0f, 0.0f, 0.0f}});
+    const Mesh &sphere = meshes.back();
+
+    // Sun - stationary, unlit
+    scene.addObject(sphere, unlitPipeline, Transform{});
+
+    // Planet 1 — orbits at radius 3, one full revolution per 5 seconds
+    scene.addObject(
+        sphere, pipeline,
+        Transform{.position = {10.0f, 0.0f, 0.0f}},
+        OrbitalBody{.radius = 10.0f, .speed = glm::two_pi<float>() / 5.0f}
+    );
+
+    // Planet 2 — orbits at radius 5, one full revolution per 10 seconds
+    scene.addObject(
+        sphere, pipeline,
+        Transform{.position = {30.0f, 0.0f, 0.0f}},
+        OrbitalBody{.radius = 30.0f, .speed = glm::two_pi<float>() / 10.0f}
+    );
 }
