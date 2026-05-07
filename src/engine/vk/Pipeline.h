@@ -17,6 +17,10 @@ struct PipelineSpec {
     vk::SampleCountFlagBits samples = vk::SampleCountFlagBits::e1;
     uint32_t pushConstantSize = 0;
     vk::Format colorAttachmentFormat = vk::Format::eUndefined; // overrides swapchain format if set
+    vk::CullModeFlagBits cullMode = vk::CullModeFlagBits::eBack;
+    bool depthTestEnable = true;
+    bool depthWriteEnable = true;
+    vk::CompareOp depthCompareOp = vk::CompareOp::eLess;
 };
 
 class Pipeline {

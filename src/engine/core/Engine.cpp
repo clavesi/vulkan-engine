@@ -113,6 +113,42 @@ namespace {
             .colorAttachmentFormat = vk::Format::eR32Uint,
         };
     }
+
+    PipelineSpec makeOutlinePipelineSpec(
+        const std::string &shaderPath,
+        const vk::Format colorFormat,
+        const vk::Format depthFormat,
+        const vk::SampleCountFlagBits samples
+    ) {
+        const auto attrs = Vertex::getAttributeDescriptions();
+
+        vk::DescriptorSetLayoutBinding uboBinding{
+            0, vk::DescriptorType::eUniformBuffer, 1,
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+            nullptr
+        };
+        vk::DescriptorSetLayoutBinding samplerBinding{
+            .binding = 1,
+            .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+            .descriptorCount = 1,
+            .stageFlags = vk::ShaderStageFlagBits::eFragment
+        };
+
+        return PipelineSpec{
+            .shaderPath = shaderPath,
+            .colorFormat = colorFormat,
+            .bindingDescription = Vertex::getBindingDescription(),
+            .attributeDescriptions = {attrs.begin(), attrs.end()}, // needs normals now
+            .descriptorBindings = {uboBinding, samplerBinding},
+            .depthFormat = depthFormat,
+            .samples = samples,
+            .pushConstantSize = sizeof(glm::mat4) + sizeof(uint32_t),
+            .cullMode = vk::CullModeFlagBits::eBack,
+            .depthTestEnable = true,
+            .depthWriteEnable = false,
+            .depthCompareOp = vk::CompareOp::eLessOrEqual,
+        };
+    }
 } // namespace
 
 Engine::Engine(EngineConfig cfg)
@@ -137,8 +173,12 @@ Engine::Engine(EngineConfig cfg)
           device,
           makePickingPipelineSpec(config.pickingShaderPath, swapChain.depthFormat(), swapChain.samples())
       ),
-
-      renderer(device, swapChain, pipeline, pickingPipeline, config, scene, input) {
+      outlinePipeline(
+          device,
+          makeOutlinePipelineSpec("shaders/shader_outline.spv", swapChain.format(), swapChain.depthFormat(),
+                                  swapChain.samples())
+      ),
+      renderer(device, swapChain, pipeline, pickingPipeline, outlinePipeline, config, scene, input) {
     input.init(window.glfwHandle());
     initScene();
 }

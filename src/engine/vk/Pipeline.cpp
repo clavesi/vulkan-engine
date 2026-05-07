@@ -55,7 +55,7 @@ Pipeline::Pipeline(const Device &device, const PipelineSpec &spec) {
         .polygonMode = vk::PolygonMode::eFill,
         // Determines the type of face culling to use. Disabled, front, back, or both.
         // Was eClockwise. The Y-flip in the projection matrix reverses winding order, so what's now "front-facing" is CCW.
-        .cullMode = vk::CullModeFlagBits::eBack,
+        .cullMode = spec.cullMode,
         // Specifies the vertex order for faces to be front-facing.
         .frontFace = vk::FrontFace::eCounterClockwise,
         // Can alter depth values by constant or based on a fragment's slope. Sometimes used for shadow mapping.
@@ -72,8 +72,8 @@ Pipeline::Pipeline(const Device &device, const PipelineSpec &spec) {
     };
 
     vk::PipelineDepthStencilStateCreateInfo depthStencil = {
-        .depthTestEnable = vk::True,
-        .depthWriteEnable = vk::True,
+        .depthTestEnable = spec.depthTestEnable ? vk::True : vk::False,
+        .depthWriteEnable = spec.depthWriteEnable ? vk::True : vk::False,
         .depthCompareOp = vk::CompareOp::eLess,
         .depthBoundsTestEnable = vk::False,
         .stencilTestEnable = vk::False

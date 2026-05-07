@@ -26,6 +26,7 @@ public:
         SwapChain &swapChain,
         const Pipeline &pipeline,
         const Pipeline &pickingPipeline,
+        const Pipeline &outlinePipeline,
         const EngineConfig &config,
         const Scene &scene,
         const Input &input
@@ -81,6 +82,7 @@ private:
     SwapChain &swapChain; // non-const because drawFrame may trigger recreate()
     const Pipeline &pipeline;
     const Pipeline &pickingPipeline;
+    const Pipeline &outlinePipeline;
     const EngineConfig &config;
     const Scene &scene;
     const Input &input;

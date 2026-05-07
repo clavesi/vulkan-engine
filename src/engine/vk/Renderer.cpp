@@ -20,6 +20,7 @@ Renderer::Renderer(
     SwapChain &swapChain,
     const Pipeline &pipeline,
     const Pipeline &pickingPipeline,
+    const Pipeline &outlinePipeline,
     const EngineConfig &config,
     const Scene &scene,
     const Input &input
@@ -28,6 +29,7 @@ Renderer::Renderer(
       swapChain(swapChain),
       pipeline(pipeline),
       pickingPipeline(pickingPipeline),
+      outlinePipeline(outlinePipeline),
       config(config),
       scene(scene),
       input(input) {
@@ -329,6 +331,41 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
         constexpr vk::DeviceSize offset = 0;
         commandBuffer.bindVertexBuffers(0, *obj.mesh->vertexBuffer().handle(), offset);
         commandBuffer.bindIndexBuffer(*obj.mesh->indexBuffer().handle(), 0, vk::IndexType::eUint32);
+        commandBuffer.drawIndexed(obj.mesh->indexCount(), 1, 0, 0, 0);
+    }
+
+    // Outline pass — draw hovered object slightly scaled up
+    if (hoveredObjectId != UINT32_MAX && hoveredObjectId < scene.getObjects().size()) {
+        const auto &obj = scene.getObjects()[hoveredObjectId];
+
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics,
+                                   outlinePipeline.handle());
+        commandBuffer.bindDescriptorSets(
+            vk::PipelineBindPoint::eGraphics,
+            outlinePipeline.layout(),
+            0, *descriptorSets[frameIndex], nullptr
+        );
+
+        // Scale up slightly for outline effect
+        Transform outlineTransform = obj.transform;
+        outlineTransform.scale *= 1.05f;
+        const glm::mat4 outlineModel = outlineTransform.matrix();
+
+    const PushConstantData pushData{
+        .model    = obj.transform.matrix(),  // original transform, no scaling
+        .objectId = hoveredObjectId
+    };
+        commandBuffer.pushConstants<PushConstantData>(
+            outlinePipeline.layout(),
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+            0,
+            pushData
+        );
+
+        constexpr vk::DeviceSize offset = 0;
+        commandBuffer.bindVertexBuffers(0, *obj.mesh->vertexBuffer().handle(), offset);
+        commandBuffer.bindIndexBuffer(*obj.mesh->indexBuffer().handle(), 0,
+                                      vk::IndexType::eUint32);
         commandBuffer.drawIndexed(obj.mesh->indexCount(), 1, 0, 0, 0);
     }
 

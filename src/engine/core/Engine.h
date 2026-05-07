@@ -48,7 +48,8 @@ private:
     SwapChain swapChain;
     Pipeline pipeline; // lit
     Pipeline unlitPipeline; // unlit
-    Pipeline pickingPipeline;
+    Pipeline pickingPipeline; // picking for detecting object mouse over
+    Pipeline outlinePipeline; // outline for object mouse over
     std::vector<Mesh> meshes; // owns mesh data
     Scene scene;
     Renderer renderer; // holds raw pointers into meshes
