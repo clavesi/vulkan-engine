@@ -7,8 +7,18 @@
 
 Camera::Camera(const float distance, const float yaw, const float pitch,
                const float fov, const float nearPlane, const float farPlane)
-    : distance(distance), yaw(yaw), pitch(pitch),
+    : distance(distance), desiredDistance(distance), defaultDistance(distance),
+      yaw(yaw), defaultYaw(yaw), pitch(pitch), defaultPitch(pitch),
       fov(fov), nearPlane(nearPlane), farPlane(farPlane) {
+}
+
+void Camera::update(float deltaTime) {
+    // Exponential smoothing — fast initial movement that decelerates naturally
+    const float targetT = 1.0f - std::exp(-targetSmoothSpeed * deltaTime);
+    const float distanceT = 1.0f - std::exp(-distanceSmoothSpeed * deltaTime);
+
+    target = glm::mix(target, desiredTarget, targetT);
+    distance = glm::mix(distance, desiredDistance, distanceT);
 }
 
 void Camera::onMouseDrag(const glm::vec2 delta) {
@@ -21,17 +31,32 @@ void Camera::onMouseDrag(const glm::vec2 delta) {
 
 void Camera::onScroll(const float delta) {
     // Scroll up (positive delta) zooms in — reduce distance
-    distance -= delta * scrollSensitivity * distance;
+    desiredDistance -= delta * scrollSensitivity * desiredDistance;
     // Prevent zooming through the target or to infinite distance
-    distance = std::max(distance, 0.1f);
+    desiredDistance = std::max(desiredDistance, 0.1f);
 }
 
 void Camera::setTarget(const glm::vec3 target) {
     this->target = target;
 }
 
+void Camera::setDesiredTarget(const glm::vec3 newTarget) {
+    desiredTarget = newTarget;
+}
+
 void Camera::setDistance(const float distance) {
     this->distance = distance;
+}
+
+void Camera::setDesiredDistance(const float newDistance) {
+    desiredDistance = newDistance;
+}
+
+void Camera::resetTarget() {
+    desiredTarget = {0.0f, 0.0f, 0.0f};
+    desiredDistance = defaultDistance;
+    yaw = defaultYaw;
+    pitch = defaultPitch;
 }
 
 glm::vec3 Camera::getPosition() const {

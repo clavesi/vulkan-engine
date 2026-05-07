@@ -40,6 +40,44 @@ namespace {
             .pushConstantSize = sizeof(glm::mat4),
         };
     }
+
+    PipelineSpec makeUnlitPipelineSpec(const std::string &shaderPath,
+                                       const vk::Format colorFormat,
+                                       const vk::Format depthFormat,
+                                       const vk::SampleCountFlagBits samples) {
+        // Same as lit spec but with only 3 attributes — no normal
+        const auto attrs = Vertex::getAttributeDescriptions();
+
+        vk::DescriptorSetLayoutBinding uboBinding{
+            0, vk::DescriptorType::eUniformBuffer, 1,
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+            nullptr
+        };
+        vk::DescriptorSetLayoutBinding samplerBinding{
+            .binding = 1,
+            .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+            .descriptorCount = 1,
+            .stageFlags = vk::ShaderStageFlagBits::eFragment
+        };
+
+        // Only locations 0, 2, 3 — skip normal at location 1
+        std::vector<vk::VertexInputAttributeDescription> unlitAttrs = {
+            attrs[0], // location 0: pos
+            attrs[2], // location 2: color
+            attrs[3], // location 3: texcoord
+        };
+
+        return PipelineSpec{
+            .shaderPath = shaderPath,
+            .colorFormat = colorFormat,
+            .bindingDescription = Vertex::getBindingDescription(),
+            .attributeDescriptions = unlitAttrs,
+            .descriptorBindings = {uboBinding, samplerBinding},
+            .depthFormat = depthFormat,
+            .samples = samples,
+            .pushConstantSize = sizeof(glm::mat4),
+        };
+    }
 } // namespace
 
 Engine::Engine(EngineConfig cfg)
@@ -57,9 +95,10 @@ Engine::Engine(EngineConfig cfg)
       ),
       unlitPipeline(
           device,
-          makeMainPipelineSpec(config.unlitShaderPath, swapChain.format(), swapChain.depthFormat(), swapChain.samples())
+          makeUnlitPipelineSpec(config.unlitShaderPath, swapChain.format(), swapChain.depthFormat(), swapChain.samples())
       ),
       renderer(device, swapChain, pipeline, config, scene) {
+    input.init(window.glfwHandle());
     initScene();
 }
 
@@ -88,9 +127,18 @@ void Engine::mainLoop() {
         const bool resized = window.wasResized();
         if (resized) window.resetResizedFlag();
 
+        // Camera input
+        if (input.isMouseButtonDown(GLFW_MOUSE_BUTTON_RIGHT)) {
+            camera.onMouseDrag(input.getMouseDelta());
+        }
         // Feed per-frame input to camera
-        camera.onMouseDrag(window.getMouseDelta());
-        camera.onScroll(window.getScrollDelta());
+        camera.onScroll(input.getScrollDelta());
+        camera.update(deltaTime);
+
+        // ESC resets camera to origin
+        if (input.wasKeyPressed(GLFW_KEY_ESCAPE)) {
+            camera.resetTarget();
+        }
 
         scene.update(deltaTime);
 
@@ -105,7 +153,7 @@ void Engine::mainLoop() {
             resized
         );
 
-        window.resetFrameInput();
+        input.reset();
     }
 
     device.waitIdle();

@@ -3,6 +3,7 @@
 #include "Config.h"
 #include "Camera.h"
 #include "Window.h"
+#include "Input.h"
 #include "vk/Instance.h"
 #include "vk/Device.h"
 #include "vk/SwapChain.h"
@@ -38,6 +39,7 @@ private:
     EngineConfig config;
     Camera camera;
     Window window;
+    Input input;
     Instance instance;
     // Use the Window System Integration (WSI) to create a surface to present rendered images to
     // Needs to be created right after the instance creation since it can influence the physical device selection.

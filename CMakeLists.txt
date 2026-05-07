@@ -93,6 +93,7 @@ add_executable(vlk_engine
         # Core
         src/engine/core/Engine.cpp
         src/engine/core/Window.cpp
+        src/engine/core/Input.cpp
         src/engine/core/Camera.cpp
         src/engine/core/Scene.cpp
         src/engine/core/Mesh.cpp

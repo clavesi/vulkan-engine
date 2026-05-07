@@ -7,13 +7,20 @@ class Camera {
 public:
     Camera(float distance, float yaw, float pitch, float fov, float nearPlane, float farPlane);
 
+    void update(float deltaTime);
+
     // Orbit controls
     void onMouseDrag(glm::vec2 delta);
     void onScroll(float delta);
 
     // Move orbit target (e.g. focus on planet)
     void setTarget(glm::vec3 target);
+    void setDesiredTarget(glm::vec3 newTarget);
     void setDistance(float distance);
+    void setDesiredDistance(float newDistance);
+
+    // Reset to origin instantly
+    void resetTarget();
 
     glm::mat4 getViewMatrix() const;
     glm::mat4 getProjectionMatrix(float aspectRatio) const;
@@ -23,9 +30,14 @@ public:
 
 private:
     glm::vec3 target = {0.0f, 0.0f, 0.0f};
+    glm::vec3 desiredTarget = {0.0f, 0.0f, 0.0f};
     float distance;
+    float desiredDistance = 3.0f;
+    float defaultDistance ;
     float yaw; // horizontal angle in radians
+    float defaultYaw;
     float pitch; // vertical angle in radians
+    float defaultPitch;
 
     float fov; // degrees
     float nearPlane;
@@ -38,4 +50,8 @@ private:
     // Prevent gimbal lock at the poles
     static constexpr float pitchMin = -1.5f; // just under -π/2
     static constexpr float pitchMax = 1.5f; // just under +π/2
+
+    // How fast the camera interpolates — higher = snappier
+    static constexpr float targetSmoothSpeed   = 8.0f;
+    static constexpr float distanceSmoothSpeed = 8.0f;
 };
