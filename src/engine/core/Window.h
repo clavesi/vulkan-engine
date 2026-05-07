@@ -33,6 +33,8 @@ public:
     // Blocks (waiting on events) while the window is minimized.
     [[nodiscard]] std::pair<int, int> getFramebufferSize() const;
 
+    glm::vec2 getContentScale() const;
+
     void waitWhileMinimized() const;
 
     [[nodiscard]] bool wasResized() const { return framebufferResized; }
@@ -46,7 +48,7 @@ public:
 private:
     static void framebufferResizeCallback(GLFWwindow *window, int width, int height);
 
-    GLFWwindow* handle           = nullptr;
-    bool        framebufferResized = false;
-    GLFWCallbackData callbackData;  // owns the shared callback data
+    GLFWwindow *handle = nullptr;
+    bool framebufferResized = false;
+    GLFWCallbackData callbackData; // owns the shared callback data
 };

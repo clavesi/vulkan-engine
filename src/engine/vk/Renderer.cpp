@@ -4,6 +4,7 @@
 #include "Pipeline.h"
 #include "core/Vertex.h"
 #include "core/UniformBufferObject.h"
+#include "core/PushConstantData.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 #define STB_IMAGE_IMPLEMENTATION
@@ -12,17 +13,26 @@
 #include <cassert>
 #include <stdexcept>
 #include <chrono>
+#include <iostream>
 
 Renderer::Renderer(
-    const Device &device, SwapChain &swapChain, const Pipeline &pipeline,
-    const EngineConfig &config, const Scene &scene
+    const Device &device,
+    SwapChain &swapChain,
+    const Pipeline &pipeline,
+    const Pipeline &pickingPipeline,
+    const EngineConfig &config,
+    const Scene &scene,
+    const Input &input
 )
     : device(device),
       swapChain(swapChain),
       pipeline(pipeline),
+      pickingPipeline(pickingPipeline),
       config(config),
-      scene(scene) {
+      scene(scene),
+      input(input) {
     createTextureImage();
+    createPickingResources();
     createCommandPool();
     createCommandBuffers();
     createSyncObjects();
@@ -51,12 +61,17 @@ void Renderer::drawFrame(
     const glm::vec3 lightPos, const glm::vec3 cameraPos,
     const bool externalResize
 ) {
+
     // Note: inFlightFences, presentCompleteSemaphores, and commandBuffers are indexed by frameIndex,
     //       while renderFinishedSemaphores is indexed by imageIndex
     const auto fenceResult = device.logical().waitForFences(*inFlightFences[frameIndex], vk::True, UINT64_MAX);
     if (fenceResult != vk::Result::eSuccess) {
         throw std::runtime_error("failed to wait for fence!");
     }
+
+    // Read last frame's pick result — one frame lag
+    hoveredObjectId = readPickedObject();
+    std::cerr << "readback value: " << hoveredObjectId << '\n';
 
     // grab image from framebuffer after previous frame has finished
     // timeout essentially never (uint64 max)
@@ -67,6 +82,7 @@ void Renderer::drawFrame(
     // here and does not need to be caught by an exception.
     if (acquireResult == vk::Result::eErrorOutOfDateKHR) {
         swapChain.recreate();
+        createPickingResources();
         return;
     }
     // On other success codes than eSuccess and eSuboptimalKHR we just throw an exception.
@@ -124,6 +140,7 @@ void Renderer::drawFrame(
         externalResize
     ) {
         swapChain.recreate();
+        createPickingResources();
     } else if (presentResult != vk::Result::eSuccess) {
         // There are no other success codes than eSuccess; on any error code, presentKHR already threw an exception.
         throw std::runtime_error("failed to present");
@@ -213,6 +230,9 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
     const auto &commandBuffer = commandBuffers[frameIndex];
     commandBuffer.begin({});
 
+    // Picking pass — runs every frame for hover detection
+    recordPickingPass();
+
     // Before starting rendering, transition the swapchain image to COLOR_ATTACHMENT_OPTIMAL
     transitionImageLayout(
         swapChain.image(imageIndex),
@@ -294,12 +314,15 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
         );
 
         // Push the model matrix for this object
-        const glm::mat4 model = obj.transform.matrix();
-        commandBuffer.pushConstants<glm::mat4>(
+        const PushConstantData pushData{
+            .model = obj.transform.matrix(),
+            .objectId = static_cast<uint32_t>(&obj - scene.getObjects().data())
+        };
+        commandBuffer.pushConstants<PushConstantData>(
             obj.pipeline->layout(),
-            vk::ShaderStageFlagBits::eVertex,
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
             0,
-            model
+            pushData
         );
 
         constexpr vk::DeviceSize offset = 0;
@@ -468,4 +491,173 @@ void Renderer::createTextureImage() {
     textureSampler.emplace(device, vk::LodClampNone);
 
     // staging automatically destroys here
+}
+
+void Renderer::createPickingResources() {
+    const auto [width, height] = swapChain.extent();
+
+    // R32_UINT - one uint32 per pixel storing object ID
+    pickingImage.emplace(
+        device,
+        width,
+        height,
+        1,
+        vk::SampleCountFlagBits::e1,
+        vk::Format::eR32Uint,
+        vk::ImageTiling::eOptimal,
+        vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc,
+        vk::MemoryPropertyFlagBits::eDeviceLocal
+    );
+
+    pickingImageView = pickingImage->createView(vk::ImageAspectFlagBits::eColor);
+
+    // 1x1 readback buffer
+    pickingReadbackBuffer.emplace(
+        device,
+        sizeof(uint32_t),
+        vk::BufferUsageFlagBits::eTransferDst,
+        vk::MemoryPropertyFlagBits::eHostVisible |
+        vk::MemoryPropertyFlagBits::eHostCoherent
+    );
+    pickingReadbackMapped = pickingReadbackBuffer->mapPersistent();
+}
+
+
+void Renderer::recordPickingPass() const {
+    const auto &cmd = commandBuffers[frameIndex];
+
+    // Transition picking image to color attachment
+    transitionImageLayout(
+        *pickingImage->handle(),
+        vk::ImageLayout::eUndefined,
+        vk::ImageLayout::eColorAttachmentOptimal,
+        {},
+        vk::AccessFlagBits2::eColorAttachmentWrite,
+        vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+        vk::PipelineStageFlagBits2::eColorAttachmentOutput
+    );
+
+    // Clear to UINT32_MAX — means "no object"
+    const vk::ClearColorValue clearId(std::array<uint32_t, 4>{UINT32_MAX, 0, 0, 0});
+    const vk::ClearValue clearValue(clearId);
+
+    vk::RenderingAttachmentInfo colorAttachment{
+        .imageView = *pickingImageView,
+        .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
+        .loadOp = vk::AttachmentLoadOp::eClear,
+        .storeOp = vk::AttachmentStoreOp::eStore,
+        .clearValue = clearValue
+    };
+
+    const auto extent = swapChain.extent();
+    const vk::RenderingInfo renderingInfo{
+        .renderArea = {.offset = {0, 0}, .extent = extent},
+        .layerCount = 1,
+        .colorAttachmentCount = 1,
+        .pColorAttachments = &colorAttachment
+        // no depth attachment — we don't need depth for picking
+    };
+
+    cmd.beginRendering(renderingInfo);
+    cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, pickingPipeline.handle());
+
+    cmd.bindDescriptorSets(
+        vk::PipelineBindPoint::eGraphics,
+        pickingPipeline.layout(),
+        0,
+        *descriptorSets[frameIndex],
+        nullptr
+    );
+
+    cmd.setViewport(0, vk::Viewport(
+                        0.0f, 0.0f,
+                        static_cast<float>(extent.width),
+                        static_cast<float>(extent.height),
+                        0.0f, 1.0f
+                    ));
+    cmd.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), extent));
+
+    for (const auto &obj: scene.getObjects()) {
+        const PushConstantData pushData{
+            .model = obj.transform.matrix(),
+            .objectId = static_cast<uint32_t>(&obj - scene.getObjects().data())
+        };
+        cmd.pushConstants<PushConstantData>(
+            pickingPipeline.layout(),
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+            0,
+            pushData
+        );
+
+        constexpr vk::DeviceSize offset = 0;
+        cmd.bindVertexBuffers(0, *obj.mesh->vertexBuffer().handle(), offset);
+        cmd.bindIndexBuffer(*obj.mesh->indexBuffer().handle(), 0, vk::IndexType::eUint32);
+        cmd.drawIndexed(obj.mesh->indexCount(), 1, 0, 0, 0);
+    }
+
+    cmd.endRendering();
+
+    // Transition picking image to transfer source for readback
+    transitionImageLayout(
+        *pickingImage->handle(),
+        vk::ImageLayout::eColorAttachmentOptimal,
+        vk::ImageLayout::eTransferSrcOptimal,
+        vk::AccessFlagBits2::eColorAttachmentWrite,
+        vk::AccessFlagBits2::eTransferRead,
+        vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+        vk::PipelineStageFlagBits2::eTransfer
+    );
+
+    // Get the framebuffer/window scale factor
+    const auto [fbWidth, fbHeight] = swapChain.extent();
+
+    // Get window size in logical pixels
+    // You'll need to expose this from Window or pass it in
+    // For now, hardcode scale = 2.0f for retina, or compute it:
+    const float scaleX = static_cast<float>(fbWidth)  / windowLogicalWidth;
+    const float scaleY = static_cast<float>(fbHeight) / windowLogicalHeight;
+
+    const int32_t px = static_cast<int32_t>(std::clamp(
+        mousePos.x * scaleX, 0.0f, static_cast<float>(fbWidth  - 1)));
+    const int32_t py = static_cast<int32_t>(std::clamp(
+        mousePos.y * scaleY, 0.0f, static_cast<float>(fbHeight - 1)));
+    const vk::BufferImageCopy copyRegion{
+        .bufferOffset = 0,
+        .bufferRowLength = 0,
+        .bufferImageHeight = 0,
+        .imageSubresource = {
+            .aspectMask = vk::ImageAspectFlagBits::eColor,
+            .mipLevel = 0,
+            .baseArrayLayer = 0,
+            .layerCount = 1
+        },
+        .imageOffset = {px, py, 0},
+        .imageExtent = {1, 1, 1} // just one pixel
+    };
+
+    cmd.copyImageToBuffer(
+        *pickingImage->handle(),
+        vk::ImageLayout::eTransferSrcOptimal,
+        pickingReadbackBuffer->handle(),
+        copyRegion
+    );
+
+    const vk::MemoryBarrier2 memBarrier{
+        .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
+        .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
+        .dstStageMask = vk::PipelineStageFlagBits2::eHost,
+        .dstAccessMask = vk::AccessFlagBits2::eHostRead
+    };
+
+    const vk::DependencyInfo depInfo{
+        .memoryBarrierCount = 1,
+        .pMemoryBarriers = &memBarrier
+    };
+
+    cmd.pipelineBarrier2(depInfo);
+}
+
+uint32_t Renderer::readPickedObject() const {
+    if (!pickingReadbackMapped) return UINT32_MAX;
+    return *static_cast<const uint32_t *>(pickingReadbackMapped);
 }

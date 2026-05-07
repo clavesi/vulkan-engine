@@ -2,8 +2,8 @@
 
 #include "core/Config.h"
 #include "core/Mesh.h"
-#include "core/RenderObject.h"
 #include "core/Scene.h"
+#include "core/Input.h"
 #include "Buffer.h"
 #include "Image.h"
 #include "Sampler.h"
@@ -13,6 +13,7 @@
 
 #include <vector>
 #include<optional>
+
 
 class Device;
 class SwapChain;
@@ -24,8 +25,10 @@ public:
         const Device &device,
         SwapChain &swapChain,
         const Pipeline &pipeline,
+        const Pipeline &pickingPipeline,
         const EngineConfig &config,
-        const Scene &scene
+        const Scene &scene,
+        const Input &input
     );
 
     Renderer(const Renderer &) = delete;
@@ -39,6 +42,8 @@ public:
         glm::vec3 lightPos, glm::vec3 cameraPos,
         bool externalResize = false
     );
+
+    uint32_t getHoveredObjectId() const { return hoveredObjectId; }
 
 private:
     // Allows the rendering of one frame to not interfere with the recording of the next.
@@ -67,11 +72,17 @@ private:
 
     void createTextureImage();
 
+    void createPickingResources();
+    void recordPickingPass() const;
+    uint32_t readPickedObject() const;
+
     const Device &device;
     SwapChain &swapChain; // non-const because drawFrame may trigger recreate()
     const Pipeline &pipeline;
+    const Pipeline &pickingPipeline;
     const EngineConfig &config;
-    const Scene& scene;
+    const Scene &scene;
+    const Input &input;
 
     // Manage memory used to store buffers and command buffers allocated from them
     vk::raii::CommandPool commandPool = nullptr;
@@ -95,4 +106,11 @@ private:
     std::optional<Image> textureImage;
     vk::raii::ImageView textureImageView = nullptr;
     std::optional<Sampler> textureSampler;
+
+    // Picking - renders object IDs, reads back pixel under cursor
+    std::optional<Image> pickingImage;
+    vk::raii::ImageView pickingImageView = nullptr;
+    std::optional<Buffer> pickingReadbackBuffer;
+    mutable void *pickingReadbackMapped = nullptr;
+    mutable uint32_t hoveredObjectId = UINT32_MAX; // max = nothing hovered
 };

@@ -6,6 +6,7 @@
 #include "core/MeshGenerator.h"
 
 #include <fstream>
+#include <iostream>
 
 namespace {
     PipelineSpec makeMainPipelineSpec(const std::string &shaderPath, const vk::Format colorFormat,
@@ -37,7 +38,7 @@ namespace {
             .descriptorBindings = {uboBinding, samplerBinding},
             .depthFormat = depthFormat,
             .samples = samples,
-            .pushConstantSize = sizeof(glm::mat4),
+            .pushConstantSize = sizeof(glm::mat4) + sizeof(uint32_t),
         };
     }
 
@@ -75,7 +76,41 @@ namespace {
             .descriptorBindings = {uboBinding, samplerBinding},
             .depthFormat = depthFormat,
             .samples = samples,
-            .pushConstantSize = sizeof(glm::mat4),
+            .pushConstantSize = sizeof(glm::mat4) + sizeof(uint32_t),
+        };
+    }
+
+    PipelineSpec makePickingPipelineSpec(
+        const std::string &shaderPath,
+        const vk::Format depthFormat,
+        const vk::SampleCountFlagBits samples
+    ) {
+        std::vector<vk::VertexInputAttributeDescription> pickingAttrs = {
+            Vertex::getAttributeDescriptions()[0], // location 0: pos only
+        };
+
+        vk::DescriptorSetLayoutBinding uboBinding{
+            0, vk::DescriptorType::eUniformBuffer, 1,
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+            nullptr
+        };
+        vk::DescriptorSetLayoutBinding samplerBinding{
+            .binding = 1,
+            .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+            .descriptorCount = 1,
+            .stageFlags = vk::ShaderStageFlagBits::eFragment
+        };
+
+        return PipelineSpec{
+            .shaderPath = shaderPath,
+            .colorFormat = vk::Format::eR32Uint, // picking image format
+            .bindingDescription = Vertex::getBindingDescription(),
+            .attributeDescriptions = pickingAttrs,
+            .descriptorBindings = {uboBinding, samplerBinding},
+            .depthFormat = depthFormat,
+            .samples = vk::SampleCountFlagBits::e1,
+            .pushConstantSize = sizeof(glm::mat4) + sizeof(uint32_t), // no MSAA for picking
+            .colorAttachmentFormat = vk::Format::eR32Uint,
         };
     }
 } // namespace
@@ -95,9 +130,15 @@ Engine::Engine(EngineConfig cfg)
       ),
       unlitPipeline(
           device,
-          makeUnlitPipelineSpec(config.unlitShaderPath, swapChain.format(), swapChain.depthFormat(), swapChain.samples())
+          makeUnlitPipelineSpec(config.unlitShaderPath, swapChain.format(), swapChain.depthFormat(),
+                                swapChain.samples())
       ),
-      renderer(device, swapChain, pipeline, config, scene) {
+      pickingPipeline(
+          device,
+          makePickingPipelineSpec(config.pickingShaderPath, swapChain.depthFormat(), swapChain.samples())
+      ),
+
+      renderer(device, swapChain, pipeline, pickingPipeline, config, scene, input) {
     input.init(window.glfwHandle());
     initScene();
 }
@@ -117,6 +158,7 @@ void Engine::mainLoop() {
     auto lastTime = std::chrono::high_resolution_clock::now();
 
     while (!window.shouldClose()) {
+
         // Delta time
         const auto currentTime = std::chrono::high_resolution_clock::now();
         const float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
@@ -134,6 +176,11 @@ void Engine::mainLoop() {
         // Feed per-frame input to camera
         camera.onScroll(input.getScrollDelta());
         camera.update(deltaTime);
+        //
+        // const auto [fbWidth, fbHeight] = window.getFramebufferSize();
+        // const auto mousePos = input.getMousePosition();
+        // std::cerr << "fb: " << fbWidth << "x" << fbHeight
+        //           << " mouse: " << mousePos.x << ", " << mousePos.y << '\n';
 
         // ESC resets camera to origin
         if (input.wasKeyPressed(GLFW_KEY_ESCAPE)) {
@@ -152,6 +199,13 @@ void Engine::mainLoop() {
             camera.getPosition(),
             resized
         );
+
+        static uint32_t lastHovered = UINT32_MAX;
+        const uint32_t hovered = renderer.getHoveredObjectId();
+        if (hovered != lastHovered) {
+            std::cerr << "hovering object: " << hovered << '\n';
+            lastHovered = hovered;
+        }
 
         input.reset();
     }
@@ -172,7 +226,8 @@ void Engine::initScene() {
     scene.addObject(
         sphere, pipeline,
         Transform{.position = {10.0f, 0.0f, 0.0f}, .scale = {0.5f, 0.5f, 0.5f}},
-        OrbitalBody{.radius = 10.0f, .speed = glm::two_pi<float>() / 5.0f}
+        OrbitalBody{.radius = 10.0f, .speed = 0.0f}
+        // OrbitalBody{.radius = 10.0f, .speed = glm::two_pi<float>() / 5.0f}
     );
 
     // Planet 2 — orbits at radius 5, one full revolution per 10 seconds

@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan_raii.hpp>
 #define GLFW_INCLUDE_VULKAN
+#include <iostream>
 #include <GLFW/glfw3.h>
 
 #include <stdexcept>
@@ -23,7 +24,9 @@ Window::Window(const uint32_t width, const uint32_t height, const std::string_vi
         throw std::runtime_error("Failed to create GLFW window");
     }
 
-    glfwSetWindowUserPointer(handle, this);
+    callbackData.window = this;
+    glfwSetWindowUserPointer(handle, &callbackData);
+    std::cerr << "Window constructor — callbackData=" << &callbackData << " window=" << callbackData.window << '\n';
     glfwSetFramebufferSizeCallback(handle, framebufferResizeCallback);
 }
 
@@ -46,6 +49,12 @@ std::pair<int, int> Window::getFramebufferSize() const {
     int width = 0, height = 0;
     glfwGetFramebufferSize(handle, &width, &height);
     return {width, height};
+}
+
+glm::vec2 Window::getContentScale() const {
+    float x, y;
+    glfwGetWindowContentScale(handle, &x, &y);
+    return {x, y};
 }
 
 void Window::waitWhileMinimized() const {

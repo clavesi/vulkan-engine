@@ -16,6 +16,7 @@ ConstantBuffer<UniformBuffer> ubo;
 // Push constant block — updated per draw call, not per frame
 struct PushConstants {
     float4x4 model;
+    uint     objectId; // unused here, used in picking.hlsl
 };
 [[vk::push_constant]]
 PushConstants push;

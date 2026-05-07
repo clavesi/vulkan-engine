@@ -4,6 +4,6 @@ class Window;
 class Input;
 
 struct GLFWCallbackData {
-    Window* window = nullptr;
     Input*  input  = nullptr;
+    Window* window = nullptr;
 };

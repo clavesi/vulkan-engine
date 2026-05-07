@@ -1,4 +1,7 @@
 #include "Pipeline.h"
+
+#include <iostream>
+
 #include "Device.h"
 #include "io/FileIO.h"
 
@@ -113,7 +116,7 @@ Pipeline::Pipeline(const Device &device, const PipelineSpec &spec) {
     descriptorSetLayout = vk::raii::DescriptorSetLayout(device.logical(), descriptorLayoutInfo);
 
     vk::PushConstantRange pushConstantRange{
-        .stageFlags = vk::ShaderStageFlagBits::eVertex,
+        .stageFlags = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
         .offset = 0,
         .size = spec.pushConstantSize
     };
@@ -128,10 +131,15 @@ Pipeline::Pipeline(const Device &device, const PipelineSpec &spec) {
     };
     pipelineLayout = vk::raii::PipelineLayout(device.logical(), layoutInfo);
 
+    const vk::Format colorFmt = spec.colorAttachmentFormat != vk::Format::eUndefined
+                                    ? spec.colorAttachmentFormat
+                                    : spec.colorFormat;
+    std::cerr << "Pipeline colorFmt: " << vk::to_string(colorFmt) << '\n';
+
     // To use dynamic rendering, we need to specify the formats of the attachments that will be used.
     vk::PipelineRenderingCreateInfo renderingInfo{
         .colorAttachmentCount = 1,
-        .pColorAttachmentFormats = &spec.colorFormat,
+        .pColorAttachmentFormats = &colorFmt,
         .depthAttachmentFormat = spec.depthFormat
     };
 

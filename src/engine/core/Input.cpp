@@ -1,7 +1,16 @@
 #include "Input.h"
 
+#include <iostream>
+
 void Input::init(GLFWwindow *window) {
-    glfwSetWindowUserPointer(window, this);
+    auto* data = static_cast<GLFWCallbackData*>(glfwGetWindowUserPointer(window));
+    std::cerr << "Input::init — data=" << data << " data->window=" << (data ? data->window : nullptr) << '\n';
+    if (!data) {
+        std::cerr << "ERROR: GLFWCallbackData is null!\n";
+        return;
+    }
+    data->input = this;
+
     glfwSetCursorPosCallback(window, mouseMoveCallback);
     glfwSetMouseButtonCallback(window, mouseButtonCallback);
     glfwSetScrollCallback(window, scrollCallback);
@@ -26,7 +35,10 @@ void Input::reset() {
 }
 
 void Input::mouseMoveCallback(GLFWwindow *w, const double x, const double y) {
-    auto *self = static_cast<Input *>(glfwGetWindowUserPointer(w));
+    auto* data = static_cast<GLFWCallbackData*>(glfwGetWindowUserPointer(w));
+    if (!data || !data->input) return;
+    auto* self = data->input;
+
     const glm::vec2 current = {static_cast<float>(x), static_cast<float>(y)};
     self->mouseDelta += current - self->lastPosition;
     self->lastPosition = current;
@@ -35,7 +47,9 @@ void Input::mouseMoveCallback(GLFWwindow *w, const double x, const double y) {
 
 void Input::mouseButtonCallback(GLFWwindow *w, const int button,
                                 const int action, int /*mods*/) {
-    auto *self = static_cast<Input *>(glfwGetWindowUserPointer(w));
+    auto* data = static_cast<GLFWCallbackData*>(glfwGetWindowUserPointer(w));
+    if (!data || !data->input) return;
+    auto* self = data->input;
 
     if (action == GLFW_PRESS) {
         self->buttonsDown.insert(button);
@@ -59,13 +73,17 @@ void Input::mouseButtonCallback(GLFWwindow *w, const int button,
 
 void Input::scrollCallback(GLFWwindow *w, double /*xOffset*/,
                            const double yOffset) {
-    auto *self = static_cast<Input *>(glfwGetWindowUserPointer(w));
+    auto* data = static_cast<GLFWCallbackData*>(glfwGetWindowUserPointer(w));
+    if (!data || !data->input) return;
+    auto* self = data->input;
     self->scrollDelta += static_cast<float>(yOffset);
 }
 
 void Input::keyCallback(GLFWwindow *w, const int key, int /*scancode*/,
                         const int action, int /*mods*/) {
-    auto *self = static_cast<Input *>(glfwGetWindowUserPointer(w));
+    auto* data = static_cast<GLFWCallbackData*>(glfwGetWindowUserPointer(w));
+    if (!data || !data->input) return;
+    auto* self = data->input;
 
     if (action == GLFW_PRESS) {
         self->keysDown.insert(key);

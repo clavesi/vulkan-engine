@@ -38,8 +38,8 @@ private:
     //   device    -> needs instance and surface
     EngineConfig config;
     Camera camera;
-    Window window;
     Input input;
+    Window window;
     Instance instance;
     // Use the Window System Integration (WSI) to create a surface to present rendered images to
     // Needs to be created right after the instance creation since it can influence the physical device selection.
@@ -48,6 +48,7 @@ private:
     SwapChain swapChain;
     Pipeline pipeline; // lit
     Pipeline unlitPipeline; // unlit
+    Pipeline pickingPipeline;
     std::vector<Mesh> meshes; // owns mesh data
     Scene scene;
     Renderer renderer; // holds raw pointers into meshes
