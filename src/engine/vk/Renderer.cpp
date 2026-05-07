@@ -59,8 +59,10 @@ Renderer::Renderer(
 void Renderer::drawFrame(
     const glm::mat4 view, const glm::mat4 proj,
     const glm::vec3 lightPos, const glm::vec3 cameraPos,
+    const glm::vec2 contentScale,
     const bool externalResize
 ) {
+    this->contentScale = contentScale;
 
     // Note: inFlightFences, presentCompleteSemaphores, and commandBuffers are indexed by frameIndex,
     //       while renderFinishedSemaphores is indexed by imageIndex
@@ -71,7 +73,6 @@ void Renderer::drawFrame(
 
     // Read last frame's pick result — one frame lag
     hoveredObjectId = readPickedObject();
-    std::cerr << "readback value: " << hoveredObjectId << '\n';
 
     // grab image from framebuffer after previous frame has finished
     // timeout essentially never (uint64 max)
@@ -538,8 +539,8 @@ void Renderer::recordPickingPass() const {
     );
 
     // Clear to UINT32_MAX — means "no object"
-    const vk::ClearColorValue clearId(std::array<uint32_t, 4>{UINT32_MAX, 0, 0, 0});
-    const vk::ClearValue clearValue(clearId);
+    constexpr vk::ClearColorValue clearId(std::array<uint32_t, 4>{UINT32_MAX, 0, 0, 0});
+    constexpr vk::ClearValue clearValue(clearId);
 
     vk::RenderingAttachmentInfo colorAttachment{
         .imageView = *pickingImageView,
@@ -608,19 +609,14 @@ void Renderer::recordPickingPass() const {
         vk::PipelineStageFlagBits2::eTransfer
     );
 
-    // Get the framebuffer/window scale factor
-    const auto [fbWidth, fbHeight] = swapChain.extent();
-
-    // Get window size in logical pixels
-    // You'll need to expose this from Window or pass it in
-    // For now, hardcode scale = 2.0f for retina, or compute it:
-    const float scaleX = static_cast<float>(fbWidth)  / windowLogicalWidth;
-    const float scaleY = static_cast<float>(fbHeight) / windowLogicalHeight;
+    // Copy pixel under cursor to readback buffer — apply content scale for retina displays
+    const auto mousePos = input.getMousePosition();
 
     const int32_t px = static_cast<int32_t>(std::clamp(
-        mousePos.x * scaleX, 0.0f, static_cast<float>(fbWidth  - 1)));
+        mousePos.x * contentScale.x, 0.0f, static_cast<float>(extent.width - 1)));
     const int32_t py = static_cast<int32_t>(std::clamp(
-        mousePos.y * scaleY, 0.0f, static_cast<float>(fbHeight - 1)));
+        mousePos.y * contentScale.y, 0.0f, static_cast<float>(extent.height - 1)));
+
     const vk::BufferImageCopy copyRegion{
         .bufferOffset = 0,
         .bufferRowLength = 0,
@@ -642,6 +638,7 @@ void Renderer::recordPickingPass() const {
         copyRegion
     );
 
+    // Memory barrier to ensure copy is visible to host before CPU reads it
     const vk::MemoryBarrier2 memBarrier{
         .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
         .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,

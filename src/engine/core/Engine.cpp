@@ -158,7 +158,6 @@ void Engine::mainLoop() {
     auto lastTime = std::chrono::high_resolution_clock::now();
 
     while (!window.shouldClose()) {
-
         // Delta time
         const auto currentTime = std::chrono::high_resolution_clock::now();
         const float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
@@ -169,18 +168,19 @@ void Engine::mainLoop() {
         const bool resized = window.wasResized();
         if (resized) window.resetResizedFlag();
 
-        // Camera input
         if (input.isMouseButtonDown(GLFW_MOUSE_BUTTON_RIGHT)) {
             camera.onMouseDrag(input.getMouseDelta());
         }
-        // Feed per-frame input to camera
+
+        if (input.wasDoubleClicked(GLFW_MOUSE_BUTTON_LEFT)) {
+            const uint32_t hovered = renderer.getHoveredObjectId();
+            if (hovered != UINT32_MAX) {
+                // set camera target to hovered object — step 7
+            }
+        }
+
         camera.onScroll(input.getScrollDelta());
         camera.update(deltaTime);
-        //
-        // const auto [fbWidth, fbHeight] = window.getFramebufferSize();
-        // const auto mousePos = input.getMousePosition();
-        // std::cerr << "fb: " << fbWidth << "x" << fbHeight
-        //           << " mouse: " << mousePos.x << ", " << mousePos.y << '\n';
 
         // ESC resets camera to origin
         if (input.wasKeyPressed(GLFW_KEY_ESCAPE)) {
@@ -192,20 +192,15 @@ void Engine::mainLoop() {
         const auto [width, height] = window.getFramebufferSize();
         const float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 
+        const glm::vec2 contentScale = window.getContentScale();
         renderer.drawFrame(
             camera.getViewMatrix(),
             camera.getProjectionMatrix(aspectRatio),
-            glm::vec3{0.0f, 0.0f, 0.0f}, // light (sun)
+            glm::vec3{0.0f, 0.0f, 0.0f},
             camera.getPosition(),
+            contentScale,
             resized
         );
-
-        static uint32_t lastHovered = UINT32_MAX;
-        const uint32_t hovered = renderer.getHoveredObjectId();
-        if (hovered != lastHovered) {
-            std::cerr << "hovering object: " << hovered << '\n';
-            lastHovered = hovered;
-        }
 
         input.reset();
     }

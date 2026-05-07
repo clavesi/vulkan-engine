@@ -134,7 +134,6 @@ Pipeline::Pipeline(const Device &device, const PipelineSpec &spec) {
     const vk::Format colorFmt = spec.colorAttachmentFormat != vk::Format::eUndefined
                                     ? spec.colorAttachmentFormat
                                     : spec.colorFormat;
-    std::cerr << "Pipeline colorFmt: " << vk::to_string(colorFmt) << '\n';
 
     // To use dynamic rendering, we need to specify the formats of the attachments that will be used.
     vk::PipelineRenderingCreateInfo renderingInfo{

@@ -26,7 +26,6 @@ Window::Window(const uint32_t width, const uint32_t height, const std::string_vi
 
     callbackData.window = this;
     glfwSetWindowUserPointer(handle, &callbackData);
-    std::cerr << "Window constructor — callbackData=" << &callbackData << " window=" << callbackData.window << '\n';
     glfwSetFramebufferSizeCallback(handle, framebufferResizeCallback);
 }
 
@@ -77,6 +76,7 @@ vk::raii::SurfaceKHR Window::createSurface(const vk::raii::Instance &instance) c
 }
 
 void Window::framebufferResizeCallback(GLFWwindow *window, int width, int height) {
-    auto *self = static_cast<Window *>(glfwGetWindowUserPointer(window));
-    self->framebufferResized = true;
+    auto *data = static_cast<GLFWCallbackData *>(glfwGetWindowUserPointer(window));
+    if (!data || !data->window) return;
+    data->window->framebufferResized = true;
 }

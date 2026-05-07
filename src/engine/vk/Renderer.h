@@ -40,6 +40,7 @@ public:
     void drawFrame(
         glm::mat4 view, glm::mat4 proj,
         glm::vec3 lightPos, glm::vec3 cameraPos,
+        glm::vec2 contentScale,
         bool externalResize = false
     );
 
@@ -83,6 +84,8 @@ private:
     const EngineConfig &config;
     const Scene &scene;
     const Input &input;
+
+    glm::vec2 contentScale = {1.0f, 1.0f};
 
     // Manage memory used to store buffers and command buffers allocated from them
     vk::raii::CommandPool commandPool = nullptr;

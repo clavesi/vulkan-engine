@@ -4,7 +4,6 @@
 
 void Input::init(GLFWwindow *window) {
     auto* data = static_cast<GLFWCallbackData*>(glfwGetWindowUserPointer(window));
-    std::cerr << "Input::init — data=" << data << " data->window=" << (data ? data->window : nullptr) << '\n';
     if (!data) {
         std::cerr << "ERROR: GLFWCallbackData is null!\n";
         return;
