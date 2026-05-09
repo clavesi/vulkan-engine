@@ -5,10 +5,9 @@
 #include "core/Vertex.h"
 #include "core/UniformBufferObject.h"
 #include "core/PushConstantData.h"
+#include "TextureLoader.h"
 
 #include <glm/gtc/matrix_transform.hpp>
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
 
 #include <cassert>
 #include <stdexcept>
@@ -32,7 +31,7 @@ Renderer::Renderer(
       config(config),
       scene(scene),
       input(input) {
-    createTextureImage();
+    vk_util::loadTexture(device, config.texturePath, texture);
     createPickingResources();
     createCommandPool();
     createCommandBuffers();
@@ -447,8 +446,8 @@ void Renderer::createDescriptorSets() {
 
         // Combined image sampler bundles both the image view and sampler into one descriptor
         vk::DescriptorImageInfo imageInfo{
-            .sampler = textureSampler->handle(),
-            .imageView = textureImageView,
+            .sampler = texture.sampler->handle(),
+            .imageView = texture.view,
             .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
         };
 
@@ -476,64 +475,6 @@ void Renderer::createDescriptorSets() {
 
         device.logical().updateDescriptorSets(writes, {});
     }
-}
-
-void Renderer::createTextureImage() {
-    int texWidth, texHeight, texChannels;
-    stbi_uc *pixels = stbi_load(
-        config.texturePath.c_str(), &texWidth, &texHeight, &texChannels,
-        STBI_rgb_alpha // force an alpha channel even if it doesn't have one
-    );
-    const vk::DeviceSize imageSize = texWidth * texHeight * 4;
-    if (!pixels) {
-        throw std::runtime_error("failed to load texture image!");
-    }
-
-    // floor(log_2(max_dim)) + 1 - number of mip levels down to 1x1
-    const uint32_t mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
-
-    // Stage on host-visible memory first
-    const Buffer staging(
-        device,
-        imageSize,
-        vk::BufferUsageFlagBits::eTransferSrc,
-        vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
-    );
-    staging.uploadData(pixels, imageSize);
-
-    stbi_image_free(pixels);
-
-    // Create the device-local image
-    textureImage.emplace(
-        device,
-        static_cast<uint32_t>(texWidth),
-        static_cast<uint32_t>(texHeight),
-        mipLevels,
-        vk::SampleCountFlagBits::e1,
-        vk::Format::eR8G8B8A8Srgb,
-        vk::ImageTiling::eOptimal,
-        vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc,
-        vk::MemoryPropertyFlagBits::eDeviceLocal
-    );
-
-    // Move it to a layout that can receive a transfer, copy, then move to a layout suitable for shader sampling
-    textureImage->transitionLayout(
-        vk::ImageLayout::eUndefined,
-        vk::ImageLayout::eTransferDstOptimal
-    );
-    textureImage->copyFromBuffer(
-        staging.handle(),
-        static_cast<uint32_t>(texWidth),
-        static_cast<uint32_t>(texHeight)
-    );
-    textureImage->generateMipmaps(vk::Format::eR8G8B8A8Srgb, texWidth, texHeight);
-
-    // View lets shaders access the image
-    textureImageView = textureImage->createView();
-    // sampler defines how it's filtered
-    textureSampler.emplace(device, vk::LodClampNone);
-
-    // staging automatically destroys here
 }
 
 void Renderer::createPickingResources() {

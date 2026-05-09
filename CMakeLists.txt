@@ -38,6 +38,7 @@ find_package(glfw3 REQUIRED)
 find_package(glm REQUIRED)
 find_package(stb REQUIRED)
 find_package(tinyobjloader REQUIRED)
+find_package(tinygltf REQUIRED)
 find_package(Imgui REQUIRED)
 
 get_target_property(IMGUI_LOCATION imgui::imgui IMPORTED_LOCATION_DEBUG)
@@ -111,6 +112,7 @@ add_executable(vlk_engine
         src/engine/vk/Image.cpp
         src/engine/vk/Sampler.cpp
         src/engine/vk/Renderer.cpp
+        src/engine/vk/TextureLoader.cpp
         # UI - ImGui
         src/engine/ui/ImGuiRenderer.cpp
 )
@@ -152,6 +154,11 @@ endif ()
 # Link tinyobjloader if available as a target
 if (TARGET tinyobjloader::tinyobjloader)
     target_link_libraries(vlk_engine PRIVATE tinyobjloader::tinyobjloader)
+endif ()
+
+# Link tinygltf if available as a target
+if (TARGET tinygltf::tinygltf)
+    target_link_libraries(vlk_engine PRIVATE tinygltf::tinygltf)
 endif ()
 
 if (TARGET imgui::imgui)

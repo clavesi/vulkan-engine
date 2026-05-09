@@ -6,7 +6,7 @@
 #include "core/Input.h"
 #include "Buffer.h"
 #include "Image.h"
-#include "Sampler.h"
+#include "Texture.h"
 #include "ui/ImGuiRenderer.h"
 
 #include <vulkan/vulkan_raii.hpp>
@@ -74,8 +74,6 @@ private:
     void createDescriptorPool();
     void createDescriptorSets();
 
-    void createTextureImage();
-
     void createPickingResources();
     void recordPickingPass() const;
     uint32_t readPickedObject() const;
@@ -111,9 +109,7 @@ private:
     // One descriptor set per frame in flight, each pointing at that frame's uniform buffer
     std::vector<vk::raii::DescriptorSet> descriptorSets;
 
-    std::optional<Image> textureImage;
-    vk::raii::ImageView textureImageView = nullptr;
-    std::optional<Sampler> textureSampler;
+    Texture texture;
 
     // Picking - renders object IDs, reads back pixel under cursor
     std::optional<Image> pickingImage;
