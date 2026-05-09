@@ -7,6 +7,7 @@
 #include "Buffer.h"
 #include "Image.h"
 #include "Sampler.h"
+#include "ui/ImGuiRenderer.h"
 
 #include <vulkan/vulkan_raii.hpp>
 #include <glm/glm.hpp>
@@ -42,6 +43,7 @@ public:
         glm::mat4 view, glm::mat4 proj,
         glm::vec3 lightPos, glm::vec3 cameraPos,
         glm::vec2 contentScale,
+        ImGuiRenderer &imguiRenderer,
         bool externalResize = false
     );
 
@@ -86,6 +88,7 @@ private:
     const EngineConfig &config;
     const Scene &scene;
     const Input &input;
+    ImGuiRenderer* imguiRendererPtr = nullptr;
 
     glm::vec2 contentScale = {1.0f, 1.0f};
 

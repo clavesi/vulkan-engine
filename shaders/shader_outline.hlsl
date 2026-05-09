@@ -27,13 +27,18 @@ struct VSOutput {
 [shader("vertex")]
 VSOutput vertMain(VSInput input) {
     VSOutput output;
-    // Expand vertex along normal in world space
-    float3 expandedPos = input.inPos + input.inNormal * 0.05;
+
+    // Extract scale from model matrix (length of first column)
+    float objectScale = length(float3(push.model[0][0], push.model[1][0], push.model[2][0]));
+
+    // Expand by a fixed screen-space-ish amount regardless of object size
+    float expandAmount = 0.13 / max(objectScale, 0.001);
+
+    float3 expandedPos = input.inPos + input.inNormal * expandAmount;
     float4 worldPos = mul(push.model, float4(expandedPos, 1.0));
     output.pos = mul(ubo.proj, mul(ubo.view, worldPos));
     return output;
 }
-
 [shader("fragment")]
 float4 fragMain(VSOutput vertIn) : SV_TARGET {
     return float4(1.0, 0.65, 0.0, 1.0);

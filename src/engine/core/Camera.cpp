@@ -8,25 +8,28 @@
 Camera::Camera(const float distance, const float yaw, const float pitch,
                const float fov, const float nearPlane, const float farPlane)
     : distance(distance), desiredDistance(distance), defaultDistance(distance),
-      yaw(yaw), defaultYaw(yaw), pitch(pitch), defaultPitch(pitch),
+      yaw(yaw), desiredYaw(yaw), defaultYaw(yaw),
+      pitch(pitch), desiredPitch(pitch), defaultPitch(pitch),
       fov(fov), nearPlane(nearPlane), farPlane(farPlane) {
 }
 
 void Camera::update(float deltaTime) {
-    // Exponential smoothing — fast initial movement that decelerates naturally
+    // Exponential smoothing
     const float targetT = 1.0f - std::exp(-targetSmoothSpeed * deltaTime);
     const float distanceT = 1.0f - std::exp(-distanceSmoothSpeed * deltaTime);
 
     target = glm::mix(target, desiredTarget, targetT);
     distance = glm::mix(distance, desiredDistance, distanceT);
+    yaw = glm::mix(yaw, desiredYaw, targetT);
+    pitch = glm::mix(pitch, desiredPitch, targetT);
 }
 
 void Camera::onMouseDrag(const glm::vec2 delta) {
-    yaw -= delta.x * orbitSensitivity; // horizontal
-    pitch += delta.y * orbitSensitivity; // vertical
+    desiredYaw -= delta.x * orbitSensitivity; // horizontal
+    desiredPitch += delta.y * orbitSensitivity; // vertical
 
     // Clamp pitch so the camera doesn't flip over the poles
-    pitch = std::clamp(pitch, pitchMin, pitchMax);
+    desiredPitch = std::clamp(desiredPitch, pitchMin, pitchMax);
 }
 
 void Camera::onScroll(const float delta) {
@@ -60,8 +63,8 @@ void Camera::setDesiredDistance(const float newDistance) {
 void Camera::resetTarget() {
     desiredTarget = {0.0f, 0.0f, 0.0f};
     desiredDistance = defaultDistance;
-    yaw = defaultYaw;
-    pitch = defaultPitch;
+    desiredYaw = defaultYaw;
+    desiredPitch = defaultPitch;
     followObjectId = UINT32_MAX;
 }
 

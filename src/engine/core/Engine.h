@@ -11,6 +11,7 @@
 #include "vk/Renderer.h"
 #include "core/Mesh.h"
 #include "core/Scene.h"
+#include "ui/ImGuiRenderer.h"
 
 #include <vulkan/vulkan_raii.hpp>
 
@@ -53,6 +54,7 @@ private:
     std::vector<Mesh> meshes; // owns mesh data
     Scene scene;
     Renderer renderer; // holds raw pointers into meshes
+    ImGuiRenderer imguiRenderer;
 
     bool paused = false;
 };

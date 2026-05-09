@@ -37,7 +37,11 @@ find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(glm REQUIRED)
 find_package(stb REQUIRED)
-find_package(tinyobjloader CONFIG REQUIRED)
+find_package(tinyobjloader REQUIRED)
+find_package(Imgui REQUIRED)
+
+get_target_property(IMGUI_LOCATION imgui::imgui IMPORTED_LOCATION_DEBUG)
+message(STATUS "ImGui debug lib: ${IMGUI_LOCATION}")
 
 # Shader compilation with Slang (optional, but preferred when slangc is available)
 # Use a relative glob pattern so paths like "[0]Vulkan" do not interfere with matching.
@@ -107,6 +111,8 @@ add_executable(vlk_engine
         src/engine/vk/Image.cpp
         src/engine/vk/Sampler.cpp
         src/engine/vk/Renderer.cpp
+        # UI - ImGui
+        src/engine/ui/ImGuiRenderer.cpp
 )
 target_include_directories(vlk_engine PRIVATE
         src
@@ -146,6 +152,10 @@ endif ()
 # Link tinyobjloader if available as a target
 if (TARGET tinyobjloader::tinyobjloader)
     target_link_libraries(vlk_engine PRIVATE tinyobjloader::tinyobjloader)
+endif ()
+
+if (TARGET imgui::imgui)
+    target_link_libraries(vlk_engine PRIVATE imgui::imgui)
 endif ()
 
 # Ensure C++20 is set on the target

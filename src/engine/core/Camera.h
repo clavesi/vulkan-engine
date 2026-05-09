@@ -41,8 +41,10 @@ private:
     float desiredDistance = 3.0f;
     float defaultDistance;
     float yaw; // horizontal angle in radians
+    float desiredYaw = 0.0f;
     float defaultYaw;
     float pitch; // vertical angle in radians
+    float desiredPitch = 0.3f;
     float defaultPitch;
 
     float fov; // degrees

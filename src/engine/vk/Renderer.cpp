@@ -13,7 +13,6 @@
 #include <cassert>
 #include <stdexcept>
 #include <chrono>
-#include <iostream>
 
 Renderer::Renderer(
     const Device &device,
@@ -62,9 +61,11 @@ void Renderer::drawFrame(
     const glm::mat4 view, const glm::mat4 proj,
     const glm::vec3 lightPos, const glm::vec3 cameraPos,
     const glm::vec2 contentScale,
+    ImGuiRenderer &imguiRenderer,
     const bool externalResize
 ) {
     this->contentScale = contentScale;
+    this->imguiRendererPtr = &imguiRenderer;
 
     // Note: inFlightFences, presentCompleteSemaphores, and commandBuffers are indexed by frameIndex,
     //       while renderFinishedSemaphores is indexed by imageIndex
@@ -195,7 +196,7 @@ void Renderer::createSyncObjects() {
 
 // Transition image layout to one that's suitable for rendering.
 void Renderer::transitionImageLayout(
-    vk::Image image,
+    const vk::Image image,
     const vk::ImageLayout oldLayout, const vk::ImageLayout newLayout,
     const vk::AccessFlags2 srcAccessMask, const vk::AccessFlags2 dstAccessMask,
     const vk::PipelineStageFlags2 srcStageMask, const vk::PipelineStageFlags2 dstStageMask
@@ -349,12 +350,11 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
         // Scale up slightly for outline effect
         Transform outlineTransform = obj.transform;
         outlineTransform.scale *= 1.05f;
-        const glm::mat4 outlineModel = outlineTransform.matrix();
 
-    const PushConstantData pushData{
-        .model    = obj.transform.matrix(),  // original transform, no scaling
-        .objectId = hoveredObjectId
-    };
+        const PushConstantData pushData{
+            .model = obj.transform.matrix(),
+            .objectId = hoveredObjectId
+        };
         commandBuffer.pushConstants<PushConstantData>(
             outlinePipeline.layout(),
             vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
@@ -367,6 +367,11 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
         commandBuffer.bindIndexBuffer(*obj.mesh->indexBuffer().handle(), 0,
                                       vk::IndexType::eUint32);
         commandBuffer.drawIndexed(obj.mesh->indexCount(), 1, 0, 0, 0);
+    }
+
+    // Render ImGui
+    if (imguiRendererPtr) {
+        imguiRendererPtr->render(commandBuffer);
     }
 
     // End rendering
@@ -676,7 +681,7 @@ void Renderer::recordPickingPass() const {
     );
 
     // Memory barrier to ensure copy is visible to host before CPU reads it
-    const vk::MemoryBarrier2 memBarrier{
+    constexpr vk::MemoryBarrier2 memBarrier{
         .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
         .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
         .dstStageMask = vk::PipelineStageFlagBits2::eHost,

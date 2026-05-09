@@ -1,10 +1,10 @@
 #include "Engine.h"
-
-#include <chrono>
-
 #include "Vertex.h"
 #include "core/MeshGenerator.h"
 
+#include <imgui.h>
+
+#include <chrono>
 #include <fstream>
 #include <iostream>
 
@@ -182,8 +182,10 @@ Engine::Engine(EngineConfig cfg)
           makeOutlinePipelineSpec("shaders/shader_outline.spv", swapChain.format(), swapChain.depthFormat(),
                                   swapChain.samples())
       ),
-      renderer(device, swapChain, pipeline, pickingPipeline, outlinePipeline, config, scene, input) {
+      renderer(device, swapChain, pipeline, pickingPipeline, outlinePipeline, config, scene, input),
+      imguiRenderer(device, swapChain, instance.get(), window.glfwHandle()) {
     input.init(window.glfwHandle());
+    imguiRenderer.initGlfw(window.glfwHandle());
     initScene();
 }
 
@@ -208,31 +210,53 @@ void Engine::mainLoop() {
         lastTime = currentTime;
 
         window.pollEvents();
+        imguiRenderer.beginFrame();
 
         const bool resized = window.wasResized();
         if (resized) window.resetResizedFlag();
 
-        if (input.isMouseButtonDown(GLFW_MOUSE_BUTTON_RIGHT)) {
-            camera.onMouseDrag(input.getMouseDelta());
-        }
-
         camera.onScroll(input.getScrollDelta());
         camera.update(deltaTime);
 
-        // Resets camera to origin (sun)
-        if (input.wasKeyPressed(GLFW_KEY_ESCAPE)) {
-            camera.resetTarget();
-        }
-
-        // Double click to change follow target
-        if (input.wasDoubleClicked(GLFW_MOUSE_BUTTON_LEFT)) {
-            const uint32_t hovered = renderer.getHoveredObjectId();
-            if (hovered != UINT32_MAX) {
-                camera.setFollowTarget(hovered);
-                const auto &obj = scene.getObjects()[hovered];
-                camera.setDesiredDistance(obj.transform.scale.x * 5.0f);
+        const bool imguiWantsMouse = ImGui::GetIO().WantCaptureMouse;
+        const bool imguiWantsKeyboard = ImGui::GetIO().WantCaptureKeyboard;
+        if (!imguiWantsMouse) {
+            if (input.isMouseButtonDown(GLFW_MOUSE_BUTTON_RIGHT)) {
+                camera.onMouseDrag(input.getMouseDelta());
+            }
+            // Double click to change follow target
+            if (input.wasDoubleClicked(GLFW_MOUSE_BUTTON_LEFT)) {
+                const uint32_t hovered = renderer.getHoveredObjectId();
+                if (hovered != UINT32_MAX) {
+                    camera.setFollowTarget(hovered);
+                    const auto &obj = scene.getObjects()[hovered];
+                    camera.setDesiredDistance(obj.transform.scale.x * 5.0f);
+                }
             }
         }
+
+        if (!imguiWantsKeyboard) {
+            if (input.wasKeyPressed(GLFW_KEY_ESCAPE)) {
+                camera.resetTarget();
+            }
+            if (input.wasKeyPressed(GLFW_KEY_SPACE)) {
+                paused = !paused;
+            }
+        }
+
+        // Build pause UI
+        ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(120, 50), ImGuiCond_Always);
+        ImGui::Begin("##controls", nullptr,
+                     ImGuiWindowFlags_NoDecoration |
+                     ImGuiWindowFlags_NoMove |
+                     ImGuiWindowFlags_NoBackground |
+                     ImGuiWindowFlags_NoBringToFrontOnFocus
+        );
+        if (ImGui::Button(paused ? "  Resume" : "  Pause", ImVec2(100, 34))) {
+            paused = !paused;
+        }
+        ImGui::End();
 
         // Update follow target position each frame
         if (camera.isFollowing()) {
@@ -240,11 +264,6 @@ void Engine::mainLoop() {
             if (id < scene.getObjects().size()) {
                 camera.setTargetImmediate(scene.getObjects()[id].transform.position);
             }
-        }
-
-        // Pause time
-        if (input.wasKeyPressed(GLFW_KEY_SPACE)) {
-            paused = !paused;
         }
 
         scene.update(paused ? 0.0f : deltaTime);
@@ -259,6 +278,7 @@ void Engine::mainLoop() {
             glm::vec3{0.0f, 0.0f, 0.0f},
             camera.getPosition(),
             contentScale,
+            imguiRenderer,
             resized
         );
 
@@ -281,8 +301,7 @@ void Engine::initScene() {
     scene.addObject(
         sphere, pipeline,
         Transform{.position = {10.0f, 0.0f, 0.0f}, .scale = {0.5f, 0.5f, 0.5f}},
-        OrbitalBody{.radius = 10.0f, .speed = 0.0f}
-        // OrbitalBody{.radius = 10.0f, .speed = glm::two_pi<float>() / 5.0f}
+        OrbitalBody{.radius = 10.0f, .speed = glm::two_pi<float>() / 5.0f}
     );
 
     // Planet 2 — orbits at radius 5, one full revolution per 10 seconds
