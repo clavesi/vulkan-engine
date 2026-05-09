@@ -74,7 +74,7 @@ Pipeline::Pipeline(const Device &device, const PipelineSpec &spec) {
     vk::PipelineDepthStencilStateCreateInfo depthStencil = {
         .depthTestEnable = spec.depthTestEnable ? vk::True : vk::False,
         .depthWriteEnable = spec.depthWriteEnable ? vk::True : vk::False,
-        .depthCompareOp = vk::CompareOp::eLess,
+        .depthCompareOp = spec.depthCompareOp,
         .depthBoundsTestEnable = vk::False,
         .stencilTestEnable = vk::False
     };

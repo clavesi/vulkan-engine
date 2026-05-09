@@ -121,6 +121,10 @@ namespace {
         const vk::SampleCountFlagBits samples
     ) {
         const auto attrs = Vertex::getAttributeDescriptions();
+        std::vector<vk::VertexInputAttributeDescription> outlineAttrs = {
+            attrs[0], // location 0: pos
+            attrs[1], // location 1: normal
+        };
 
         vk::DescriptorSetLayoutBinding uboBinding{
             0, vk::DescriptorType::eUniformBuffer, 1,
@@ -138,15 +142,15 @@ namespace {
             .shaderPath = shaderPath,
             .colorFormat = colorFormat,
             .bindingDescription = Vertex::getBindingDescription(),
-            .attributeDescriptions = {attrs.begin(), attrs.end()}, // needs normals now
+            .attributeDescriptions = outlineAttrs,
             .descriptorBindings = {uboBinding, samplerBinding},
             .depthFormat = depthFormat,
             .samples = samples,
             .pushConstantSize = sizeof(glm::mat4) + sizeof(uint32_t),
-            .cullMode = vk::CullModeFlagBits::eBack,
+            .cullMode = vk::CullModeFlagBits::eFront,
             .depthTestEnable = true,
             .depthWriteEnable = false,
-            .depthCompareOp = vk::CompareOp::eLessOrEqual,
+            .depthCompareOp = vk::CompareOp::eLess,
         };
     }
 } // namespace
@@ -212,22 +216,38 @@ void Engine::mainLoop() {
             camera.onMouseDrag(input.getMouseDelta());
         }
 
-        if (input.wasDoubleClicked(GLFW_MOUSE_BUTTON_LEFT)) {
-            const uint32_t hovered = renderer.getHoveredObjectId();
-            if (hovered != UINT32_MAX) {
-                // set camera target to hovered object — step 7
-            }
-        }
-
         camera.onScroll(input.getScrollDelta());
         camera.update(deltaTime);
 
-        // ESC resets camera to origin
+        // Resets camera to origin (sun)
         if (input.wasKeyPressed(GLFW_KEY_ESCAPE)) {
             camera.resetTarget();
         }
 
-        scene.update(deltaTime);
+        // Double click to change follow target
+        if (input.wasDoubleClicked(GLFW_MOUSE_BUTTON_LEFT)) {
+            const uint32_t hovered = renderer.getHoveredObjectId();
+            if (hovered != UINT32_MAX) {
+                camera.setFollowTarget(hovered);
+                const auto &obj = scene.getObjects()[hovered];
+                camera.setDesiredDistance(obj.transform.scale.x * 5.0f);
+            }
+        }
+
+        // Update follow target position each frame
+        if (camera.isFollowing()) {
+            const uint32_t id = camera.getFollowObjectId();
+            if (id < scene.getObjects().size()) {
+                camera.setTargetImmediate(scene.getObjects()[id].transform.position);
+            }
+        }
+
+        // Pause time
+        if (input.wasKeyPressed(GLFW_KEY_SPACE)) {
+            paused = !paused;
+        }
+
+        scene.update(paused ? 0.0f : deltaTime);
 
         const auto [width, height] = window.getFramebufferSize();
         const float aspectRatio = static_cast<float>(width) / static_cast<float>(height);

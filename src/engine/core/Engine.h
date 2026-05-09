@@ -53,4 +53,6 @@ private:
     std::vector<Mesh> meshes; // owns mesh data
     Scene scene;
     Renderer renderer; // holds raw pointers into meshes
+
+    bool paused = false;
 };

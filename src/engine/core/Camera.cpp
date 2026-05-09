@@ -44,6 +44,11 @@ void Camera::setDesiredTarget(const glm::vec3 newTarget) {
     desiredTarget = newTarget;
 }
 
+void Camera::setTargetImmediate(const glm::vec3 target) {
+    this->target = target;
+    this->desiredTarget = target;
+}
+
 void Camera::setDistance(const float distance) {
     this->distance = distance;
 }
@@ -57,6 +62,7 @@ void Camera::resetTarget() {
     desiredDistance = defaultDistance;
     yaw = defaultYaw;
     pitch = defaultPitch;
+    followObjectId = UINT32_MAX;
 }
 
 glm::vec3 Camera::getPosition() const {
