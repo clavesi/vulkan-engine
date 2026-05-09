@@ -31,7 +31,6 @@ Renderer::Renderer(
       config(config),
       scene(scene),
       input(input) {
-    vk_util::loadTexture(device, config.texturePath, texture);
     createPickingResources();
     createCommandPool();
     createCommandBuffers();
@@ -51,9 +50,6 @@ Renderer::Renderer(
         // Persistent mapping: get the pointer once, reuse it forever
         uniformBuffersMapped.push_back(uniformBuffers.back().mapPersistent());
     }
-
-    createDescriptorPool();
-    createDescriptorSets();
 }
 
 void Renderer::drawFrame(
@@ -304,6 +300,8 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
     commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), extent));
 
     for (const auto &obj: scene.getObjects()) {
+        const uint32_t objIdx = static_cast<uint32_t>(&obj - scene.getObjects().data());
+
         // Bind this object's pipeline
         commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, obj.pipeline->handle());
 
@@ -312,7 +310,7 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
             vk::PipelineBindPoint::eGraphics,
             obj.pipeline->layout(),
             0,
-            *descriptorSets[frameIndex],
+            *descriptorSets[objIdx][frameIndex],
             nullptr
         );
 
@@ -343,7 +341,9 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
         commandBuffer.bindDescriptorSets(
             vk::PipelineBindPoint::eGraphics,
             outlinePipeline.layout(),
-            0, *descriptorSets[frameIndex], nullptr
+            0,
+            *descriptorSets[hoveredObjectId][frameIndex],
+            nullptr
         );
 
         // Scale up slightly for outline effect
@@ -403,78 +403,77 @@ void Renderer::updateUniformBuffer(
 }
 
 void Renderer::createDescriptorPool() {
-    // Two pool sizes now: one for UBOs (matrices), one for combined image samplers (textures)
+    const uint32_t objectCount = static_cast<uint32_t>(scene.getObjects().size());
+    const uint32_t setCount = objectCount * MAX_FRAMES_IN_FLIGHT;
+
     std::array<vk::DescriptorPoolSize, 2> poolSizes{
         {
-            {.type = vk::DescriptorType::eUniformBuffer, .descriptorCount = MAX_FRAMES_IN_FLIGHT},
-            {.type = vk::DescriptorType::eCombinedImageSampler, .descriptorCount = MAX_FRAMES_IN_FLIGHT}
+            {.type = vk::DescriptorType::eUniformBuffer, .descriptorCount = setCount},
+            {.type = vk::DescriptorType::eCombinedImageSampler, .descriptorCount = setCount}
         }
     };
 
     const vk::DescriptorPoolCreateInfo poolInfo{
-        // Required for vk::raii::DescriptorSet's destructor
         .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
-        // maxSets caps how many descriptor *sets* (not individual descriptors) can be allocated from this pool over its lifetime
-        .maxSets = MAX_FRAMES_IN_FLIGHT,
+        .maxSets = setCount,
         .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
         .pPoolSizes = poolSizes.data()
     };
-
     descriptorPool = vk::raii::DescriptorPool(device.logical(), poolInfo);
 }
 
-
 void Renderer::createDescriptorSets() {
-    // allocateDescriptorSets wants one layout pointer per set, even though they're all the same layout in our case
-    std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, *pipeline.descriptorLayout());
-    const vk::DescriptorSetAllocateInfo allocInfo{
-        .descriptorPool = descriptorPool,
-        .descriptorSetCount = static_cast<uint32_t>(layouts.size()),
-        .pSetLayouts = layouts.data()
-    };
-
+    const auto &objects = scene.getObjects();
     descriptorSets.clear();
-    descriptorSets = device.logical().allocateDescriptorSets(allocInfo);
+    descriptorSets.resize(objects.size());
 
-    // Each descriptor set is allocated but empty — point each one at its corresponding uniform buffer
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        vk::DescriptorBufferInfo bufferInfo{
-            .buffer = uniformBuffers[i].handle(),
-            .offset = 0,
-            .range = sizeof(UniformBufferObject)
+    for (size_t objIdx = 0; objIdx < objects.size(); ++objIdx) {
+        std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT,
+                                                     *pipeline.descriptorLayout());
+        const vk::DescriptorSetAllocateInfo allocInfo{
+            .descriptorPool = descriptorPool,
+            .descriptorSetCount = static_cast<uint32_t>(layouts.size()),
+            .pSetLayouts = layouts.data()
         };
+        descriptorSets[objIdx] = device.logical().allocateDescriptorSets(allocInfo);
 
-        // Combined image sampler bundles both the image view and sampler into one descriptor
-        vk::DescriptorImageInfo imageInfo{
-            .sampler = texture.sampler->handle(),
-            .imageView = texture.view,
-            .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
-        };
-
-        // Two writes: binding 0 is the UBO (matrices), binding 1 is the texture
-        std::array<vk::WriteDescriptorSet, 2> writes{
-            {
+        for (size_t frameIdx = 0; frameIdx < MAX_FRAMES_IN_FLIGHT; ++frameIdx) {
+            vk::DescriptorBufferInfo bufferInfo{
+                .buffer = uniformBuffers[frameIdx].handle(),
+                .offset = 0,
+                .range = sizeof(UniformBufferObject)
+            };
+            vk::DescriptorImageInfo imageInfo{
+                .sampler = objects[objIdx].texture->sampler->handle(),
+                .imageView = objects[objIdx].texture->view,
+                .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
+            };
+            std::array<vk::WriteDescriptorSet, 2> writes{
                 {
-                    .dstSet = descriptorSets[i],
-                    .dstBinding = 0,
-                    .dstArrayElement = 0,
-                    .descriptorCount = 1,
-                    .descriptorType = vk::DescriptorType::eUniformBuffer,
-                    .pBufferInfo = &bufferInfo
-                },
-                {
-                    .dstSet = descriptorSets[i],
-                    .dstBinding = 1,
-                    .dstArrayElement = 0,
-                    .descriptorCount = 1,
-                    .descriptorType = vk::DescriptorType::eCombinedImageSampler,
-                    .pImageInfo = &imageInfo
+                    {
+                        .dstSet = descriptorSets[objIdx][frameIdx],
+                        .dstBinding = 0,
+                        .descriptorCount = 1,
+                        .descriptorType = vk::DescriptorType::eUniformBuffer,
+                        .pBufferInfo = &bufferInfo
+                    },
+                    {
+                        .dstSet = descriptorSets[objIdx][frameIdx],
+                        .dstBinding = 1,
+                        .descriptorCount = 1,
+                        .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+                        .pImageInfo = &imageInfo
+                    }
                 }
-            }
-        };
-
-        device.logical().updateDescriptorSets(writes, {});
+            };
+            device.logical().updateDescriptorSets(writes, {});
+        }
     }
+}
+
+void Renderer::onSceneReady() {
+    createDescriptorPool();
+    createDescriptorSets();
 }
 
 void Renderer::createPickingResources() {
@@ -549,7 +548,7 @@ void Renderer::recordPickingPass() const {
         vk::PipelineBindPoint::eGraphics,
         pickingPipeline.layout(),
         0,
-        *descriptorSets[frameIndex],
+        *descriptorSets[0][frameIndex],
         nullptr
     );
 

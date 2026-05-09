@@ -7,9 +7,13 @@
 class Scene {
 public:
     // Add an object to the scene.
-    // Returns a reference so the caller can store it and update its transform later
-    SceneObject &addObject(const Mesh &mesh, const Pipeline &pipeline, Transform transform = {},
-                           std::optional<OrbitalBody> orbital = std::nullopt);
+    void addObject(
+        const Mesh &mesh,
+        const Pipeline &pipeline,
+        const Texture &texture,
+        Transform transform = {},
+        std::optional<OrbitalBody> orbital = std::nullopt
+    );
 
     void update(float deltaTime);
 

@@ -6,7 +6,6 @@
 #include "core/Input.h"
 #include "Buffer.h"
 #include "Image.h"
-#include "Texture.h"
 #include "ui/ImGuiRenderer.h"
 
 #include <vulkan/vulkan_raii.hpp>
@@ -47,6 +46,8 @@ public:
         bool externalResize = false
     );
 
+    void onSceneReady();
+
     uint32_t getHoveredObjectId() const { return hoveredObjectId; }
 
 private:
@@ -86,7 +87,7 @@ private:
     const EngineConfig &config;
     const Scene &scene;
     const Input &input;
-    ImGuiRenderer* imguiRendererPtr = nullptr;
+    ImGuiRenderer *imguiRendererPtr = nullptr;
 
     glm::vec2 contentScale = {1.0f, 1.0f};
 
@@ -107,9 +108,7 @@ private:
     // Pool that descriptor sets are allocated from
     vk::raii::DescriptorPool descriptorPool = nullptr;
     // One descriptor set per frame in flight, each pointing at that frame's uniform buffer
-    std::vector<vk::raii::DescriptorSet> descriptorSets;
-
-    Texture texture;
+    std::vector<std::vector<vk::raii::DescriptorSet> > descriptorSets;
 
     // Picking - renders object IDs, reads back pixel under cursor
     std::optional<Image> pickingImage;

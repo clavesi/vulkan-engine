@@ -2,14 +2,14 @@
 
 #include <cmath>
 
-SceneObject &Scene::addObject(const Mesh &mesh, const Pipeline &pipeline, Transform transform,
-                              const std::optional<OrbitalBody> orbital) {
-    return objects.emplace_back(SceneObject{
-        .mesh = &mesh,
-        .pipeline = &pipeline,
-        .transform = transform,
-        .orbital = orbital
-    });
+void Scene::addObject(
+    const Mesh &mesh,
+    const Pipeline &pipeline,
+    const Texture &texture,
+    Transform transform,
+    std::optional<OrbitalBody> orbital
+) {
+    objects.push_back({&mesh, &pipeline, &texture, std::move(transform), std::move(orbital)});
 }
 
 void Scene::update(float deltaTime) {

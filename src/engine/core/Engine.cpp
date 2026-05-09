@@ -1,5 +1,6 @@
 #include "Engine.h"
 #include "Vertex.h"
+#include "vk/TextureLoader.h"
 #include "core/MeshGenerator.h"
 
 #include <imgui.h>
@@ -187,6 +188,7 @@ Engine::Engine(EngineConfig cfg)
     input.init(window.glfwHandle());
     imguiRenderer.initGlfw(window.glfwHandle());
     initScene();
+    renderer.onSceneReady();
 }
 
 Engine::~Engine() {
@@ -294,19 +296,25 @@ void Engine::initScene() {
     meshes.emplace_back(device, vertices, indices);
     const Mesh &sphere = meshes.back();
 
+    // Load shared texture for now — each object gets its own pointer,
+    // ready for per-object textures once we have more assets
+    textures.emplace_back();
+    vk_util::loadTexture(device, config.texturePath, textures.back());
+    const Texture &tex = textures.back();
+
     // Sun - stationary, unlit
-    scene.addObject(sphere, unlitPipeline, Transform{.scale = {4.0f, 4.0f, 4.0f}});
+    scene.addObject(sphere, unlitPipeline, tex, Transform{.scale = {4.0f, 4.0f, 4.0f}});
 
     // Planet 1 — orbits at radius 3, one full revolution per 5 seconds
     scene.addObject(
-        sphere, pipeline,
+        sphere, pipeline, tex,
         Transform{.position = {10.0f, 0.0f, 0.0f}, .scale = {0.5f, 0.5f, 0.5f}},
         OrbitalBody{.radius = 10.0f, .speed = glm::two_pi<float>() / 5.0f}
     );
 
     // Planet 2 — orbits at radius 5, one full revolution per 10 seconds
     scene.addObject(
-        sphere, pipeline,
+        sphere, pipeline, tex,
         Transform{.position = {30.0f, 0.0f, 0.0f}, .scale = {1.0f, 1.0f, 1.0f}},
         OrbitalBody{.radius = 30.0f, .speed = glm::two_pi<float>() / 10.0f}
     );
