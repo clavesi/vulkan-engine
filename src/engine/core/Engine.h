@@ -12,6 +12,7 @@
 #include "core/Mesh.h"
 #include "core/Scene.h"
 #include "ui/ImGuiRenderer.h"
+#include "app/SolarSystem.h"
 
 #include <vulkan/vulkan_raii.hpp>
 
@@ -59,4 +60,6 @@ private:
     ImGuiRenderer imguiRenderer;
 
     bool paused = false;
+
+    app::SolarSystem solarSystem;
 };

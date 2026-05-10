@@ -260,6 +260,29 @@ void Engine::mainLoop() {
         }
         ImGui::End();
 
+        // Planet list panel
+        ImGui::SetNextWindowPos(ImVec2(10, 70), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(140, 0), ImGuiCond_Always); // 0 height = auto
+        ImGui::Begin("##planets", nullptr,
+                     ImGuiWindowFlags_NoDecoration |
+                     ImGuiWindowFlags_NoMove |
+                     ImGuiWindowFlags_NoBackground |
+                     ImGuiWindowFlags_NoBringToFrontOnFocus
+        );
+        const auto &objects = scene.getObjects();
+        for (size_t i = 0; i < objects.size(); ++i) {
+            const auto &obj = objects[i];
+            if (obj.name.empty()) continue;
+            const bool isFollowing = camera.isFollowing() && camera.getFollowObjectId() == i;
+            if (isFollowing) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.5f, 0.8f, 1.0f));
+            if (ImGui::Button(obj.name.c_str(), ImVec2(120, 0))) {
+                camera.setFollowTarget(static_cast<uint32_t>(i));
+                camera.setDesiredDistance(obj.transform.scale.x * 8.0f);
+            }
+            if (isFollowing) ImGui::PopStyleColor();
+        }
+        ImGui::End();
+
         // Update follow target position each frame
         if (camera.isFollowing()) {
             const uint32_t id = camera.getFollowObjectId();
@@ -292,44 +315,9 @@ void Engine::mainLoop() {
 
 void Engine::initScene() {
     // Load mesh
-    auto [vertices, indices] = MeshGenerator::sphere(1.0f, 32, 32);
+    auto [vertices, indices] = MeshGenerator::sphere(1.0f, 64, 64);
     meshes.emplace_back(device, vertices, indices);
     const Mesh &sphere = meshes.back();
 
-    // Sun - stationary, unlit
-    textures.emplace_back();
-    vk_util::loadTexture(device, "textures/solar/2k_sun.jpg", textures.back());
-    const Texture &sunTex = textures.back();
-    scene.addObject(sphere, unlitPipeline, sunTex, Transform{.scale = {4.0f, 4.0f, 4.0f}});
-
-    // Earth
-    textures.emplace_back();
-    vk_util::loadTexture(device, "textures/solar/2k_earth_daymap.jpg", textures.back());
-    const Texture &earthTex = textures.back();
-    // Planet 1 — orbits at radius 3, one full revolution per 5 seconds
-    scene.addObject(
-        sphere, pipeline, earthTex,
-        Transform{.position = {10.0f, 0.0f, 0.0f}, .scale = {0.5f, 0.5f, 0.5f}},
-        OrbitalBody{.radius = 10.0f, .speed = glm::two_pi<float>() / 5.0f}
-    );
-
-    textures.emplace_back();
-    vk_util::loadTexture(device, "textures/solar/2k_makemake.jpg", textures.back());
-    const Texture &makemakeTex = textures.back();
-    scene.addObject(
-        sphere, pipeline, makemakeTex,
-        Transform{.position = {30.0f, 0.0f, 0.0f}, .scale = {0.4f, 0.4f, 0.4f}},
-        OrbitalBody{.radius = 30.0f, .speed = glm::two_pi<float>() / 10.0f}
-    );
-
-
-    textures.emplace_back();
-    vk_util::loadTexture(device, "textures/solar/2k_jupiter.jpg", textures.back());
-    const Texture &jupiterTex = textures.back();
-    // Planet 2 — orbits at radius 5, one full revolution per 10 seconds
-    scene.addObject(
-        sphere, pipeline, jupiterTex,
-        Transform{.position = {60.0f, 0.0f, 0.0f}, .scale = {1.0f, 1.0f, 1.0f}},
-        OrbitalBody{.radius = 60.0f, .speed = glm::two_pi<float>() / 20.0f}
-    );
+    solarSystem.init(scene, sphere, pipeline, unlitPipeline, textures, device);
 }

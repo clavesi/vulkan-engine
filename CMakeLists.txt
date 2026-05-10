@@ -115,6 +115,8 @@ add_executable(vlk_engine
         src/engine/vk/TextureLoader.cpp
         # UI - ImGui
         src/engine/ui/ImGuiRenderer.cpp
+        # App
+        src/app/SolarSystem.cpp
 )
 target_include_directories(vlk_engine PRIVATE
         src

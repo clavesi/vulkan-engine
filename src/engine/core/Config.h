@@ -20,5 +20,5 @@ struct EngineConfig {
     float cameraPitch = 0.3f; // slight downward tilt to see the model
     float cameraFov = 45.0f;
     float cameraNear = 0.1f;
-    float cameraFar = 1000.0f;
+    float cameraFar = 3000.0f;
 };

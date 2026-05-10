@@ -7,9 +7,10 @@ void Scene::addObject(
     const Pipeline &pipeline,
     const Texture &texture,
     Transform transform,
-    std::optional<OrbitalBody> orbital
+    std::optional<OrbitalBody> orbital,
+    std::string name
 ) {
-    objects.push_back({&mesh, &pipeline, &texture, std::move(transform), std::move(orbital)});
+    objects.push_back({&mesh, &pipeline, &texture, std::move(transform), std::move(orbital), std::move(name)});
 }
 
 void Scene::update(float deltaTime) {

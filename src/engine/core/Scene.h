@@ -12,7 +12,8 @@ public:
         const Pipeline &pipeline,
         const Texture &texture,
         Transform transform = {},
-        std::optional<OrbitalBody> orbital = std::nullopt
+        std::optional<OrbitalBody> orbital = std::nullopt,
+        std::string name = ""
     );
 
     void update(float deltaTime);
