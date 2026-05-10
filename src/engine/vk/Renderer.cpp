@@ -354,7 +354,7 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
         outlineTransform.scale *= 1.05f;
 
         const PushConstantData pushData{
-            .model = obj.transform.matrix(),
+            .model = outlineTransform.matrix(),
             .objectId = hoveredObjectId
         };
         commandBuffer.pushConstants<PushConstantData>(
