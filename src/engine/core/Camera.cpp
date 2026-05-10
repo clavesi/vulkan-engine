@@ -25,18 +25,26 @@ void Camera::update(float deltaTime) {
 }
 
 void Camera::onMouseDrag(const glm::vec2 delta) {
-    desiredYaw -= delta.x * orbitSensitivity; // horizontal
-    desiredPitch += delta.y * orbitSensitivity; // vertical
-
-    // Clamp pitch so the camera doesn't flip over the poles
-    desiredPitch = std::clamp(desiredPitch, pitchMin, pitchMax);
+    if (mode == Mode::eFree) {
+        freeCamYaw -= delta.x * freeLookSensitivity;
+        freeCamPitch -= delta.y * freeLookSensitivity;
+        freeCamPitch = std::clamp(freeCamPitch, pitchMin, pitchMax);
+    } else {
+        desiredYaw -= delta.x * orbitSensitivity;
+        desiredPitch += delta.y * orbitSensitivity;
+        desiredPitch = std::clamp(desiredPitch, pitchMin, pitchMax);
+    }
 }
 
 void Camera::onScroll(const float delta) {
-    // Scroll up (positive delta) zooms in — reduce distance
-    desiredDistance -= delta * scrollSensitivity * desiredDistance;
-    // Prevent zooming through the target or to infinite distance
-    desiredDistance = std::max(desiredDistance, 0.1f);
+    if (mode == Mode::eFree) {
+        // Scroll adjusts move speed multiplicatively
+        moveSpeed *= std::pow(speedScrollScale, delta);
+        moveSpeed = std::max(moveSpeed, 0.1f);
+    } else {
+        desiredDistance -= delta * scrollSensitivity * desiredDistance;
+        desiredDistance = std::max(desiredDistance, 0.1f);
+    }
 }
 
 void Camera::setTarget(const glm::vec3 target) {
@@ -68,20 +76,16 @@ void Camera::resetTarget() {
     followObjectId = UINT32_MAX;
 }
 
-glm::vec3 Camera::getPosition() const {
-    // Spherical to Cartesian — yaw rotates around Z (up axis),
-    // pitch tilts toward/away from the XY plane
-    return target + glm::vec3{
-               distance * std::cos(pitch) * std::cos(yaw),
-               distance * std::cos(pitch) * std::sin(yaw),
-               distance * std::sin(pitch)
-           };
-}
-
 glm::mat4 Camera::getViewMatrix() const {
-    const glm::vec3 position = getPosition();
-    // +Z is up in our scene
-    return glm::lookAt(position, target, glm::vec3{0.0f, 0.0f, 1.0f});
+    if (mode == Mode::eFree) {
+        const glm::vec3 forward = {
+            std::cos(freeCamPitch) * std::cos(freeCamYaw),
+            std::cos(freeCamPitch) * std::sin(freeCamYaw),
+            std::sin(freeCamPitch)
+        };
+        return glm::lookAt(freeCamPos, freeCamPos + forward, glm::vec3{0.0f, 0.0f, 1.0f});
+    }
+    return glm::lookAt(getPosition(), target, glm::vec3{0.0f, 0.0f, 1.0f});
 }
 
 glm::mat4 Camera::getProjectionMatrix(const float aspectRatio) const {
@@ -93,4 +97,49 @@ glm::mat4 Camera::getProjectionMatrix(const float aspectRatio) const {
     );
     proj[1][1] *= -1; // GLM was designed for OpenGL; Vulkan's Y axis is flipped
     return proj;
+}
+
+glm::vec3 Camera::getPosition() const {
+    if (mode == Mode::eFree) {
+        return freeCamPos;
+    }
+
+    // Spherical to Cartesian — yaw rotates around Z (up axis),
+    // pitch tilts toward/away from the XY plane
+    return target + glm::vec3{
+               distance * std::cos(pitch) * std::cos(yaw),
+               distance * std::cos(pitch) * std::sin(yaw),
+               distance * std::sin(pitch)
+           };
+}
+
+void Camera::toggleFreeCam() {
+    if (mode == Mode::eOrbit) {
+        // Inherit position and look direction from current orbit state
+        freeCamPos = getPosition();
+        // Orbit yaw points FROM target TO camera
+        freeCamYaw = yaw + glm::pi<float>();
+        freeCamPitch = -pitch;
+        followObjectId = UINT32_MAX;
+        mode = Mode::eFree;
+    } else {
+        mode = Mode::eOrbit;
+    }
+}
+
+void Camera::onFreeCamMove(glm::vec3 localInput, float deltaTime) {
+    if (mode != Mode::eFree || localInput == glm::vec3{0.0f}) {
+        return;
+    }
+
+    // Build right/up/forward from free cam angles
+    const glm::vec3 forward = {
+        std::cos(freeCamPitch) * std::cos(freeCamYaw),
+        std::cos(freeCamPitch) * std::sin(freeCamYaw),
+        std::sin(freeCamPitch)
+    };
+    const glm::vec3 right = glm::normalize(glm::cross(forward, glm::vec3{0.0f, 0.0f, 1.0f}));
+    const glm::vec3 up = glm::cross(right, forward);
+
+    freeCamPos += (right * localInput.x + forward * localInput.y + up * localInput.z) * moveSpeed * deltaTime;
 }

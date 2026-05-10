@@ -1,6 +1,5 @@
 #include "Engine.h"
 #include "Vertex.h"
-#include "vk/TextureLoader.h"
 #include "core/MeshGenerator.h"
 
 #include <imgui.h>
@@ -63,7 +62,7 @@ namespace {
         };
 
         // Only locations 0, 2, 3 — skip normal at location 1
-        std::vector<vk::VertexInputAttributeDescription> unlitAttrs = {
+        const std::vector<vk::VertexInputAttributeDescription> unlitAttrs = {
             attrs[0], // location 0: pos
             attrs[2], // location 2: color
             attrs[3], // location 3: texcoord
@@ -86,7 +85,7 @@ namespace {
         const vk::Format depthFormat,
         const vk::SampleCountFlagBits samples
     ) {
-        std::vector<vk::VertexInputAttributeDescription> pickingAttrs = {
+        const std::vector<vk::VertexInputAttributeDescription> pickingAttrs = {
             Vertex::getAttributeDescriptions()[0], // location 0: pos only
         };
 
@@ -122,7 +121,7 @@ namespace {
         const vk::SampleCountFlagBits samples
     ) {
         const auto attrs = Vertex::getAttributeDescriptions();
-        std::vector<vk::VertexInputAttributeDescription> outlineAttrs = {
+        const std::vector<vk::VertexInputAttributeDescription> outlineAttrs = {
             attrs[0], // location 0: pos
             attrs[1], // location 1: normal
         };
@@ -211,7 +210,7 @@ void Engine::mainLoop() {
         const float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
         lastTime = currentTime;
 
-        window.pollEvents();
+        Window::pollEvents();
         imguiRenderer.beginFrame();
 
         const bool resized = window.wasResized();
@@ -221,34 +220,52 @@ void Engine::mainLoop() {
         camera.update(deltaTime);
 
         const bool imguiWantsMouse = ImGui::GetIO().WantCaptureMouse;
-        const bool imguiWantsKeyboard = ImGui::GetIO().WantCaptureKeyboard;
         if (!imguiWantsMouse) {
             if (input.isMouseButtonDown(GLFW_MOUSE_BUTTON_RIGHT)) {
                 camera.onMouseDrag(input.getMouseDelta());
             }
-            // Double click to change follow target
-            if (input.wasDoubleClicked(GLFW_MOUSE_BUTTON_LEFT)) {
+            // Double click to change follow target - double-click only makes sense in orbit mode
+            if (!camera.isFreeCam() && input.wasDoubleClicked(GLFW_MOUSE_BUTTON_LEFT)) {
                 const uint32_t hovered = renderer.getHoveredObjectId();
                 if (hovered != UINT32_MAX) {
                     camera.setFollowTarget(hovered);
-                    const auto &obj = scene.getObjects()[hovered];
-                    camera.setDesiredDistance(obj.transform.scale.x * 5.0f);
+                    camera.setDesiredDistance(scene.getObjects()[hovered].transform.scale.x * 8.0f);
                 }
             }
         }
 
+        const bool imguiWantsKeyboard = ImGui::GetIO().WantCaptureKeyboard;
         if (!imguiWantsKeyboard) {
             if (input.wasKeyPressed(GLFW_KEY_ESCAPE)) {
-                camera.resetTarget();
+                if (camera.isFreeCam()) {
+                    camera.toggleFreeCam(); // back to orbit
+                } else {
+                    camera.resetTarget(); // existing reset behavior
+                }
             }
             if (input.wasKeyPressed(GLFW_KEY_SPACE)) {
                 paused = !paused;
             }
+            if (input.wasKeyPressed(GLFW_KEY_F)) {
+                camera.toggleFreeCam();
+            }
+
+            // WASD movement in free cam
+            if (camera.isFreeCam()) {
+                glm::vec3 move{0.0f};
+                if (input.isKeyDown(GLFW_KEY_D)) move.x += 1.0f;
+                if (input.isKeyDown(GLFW_KEY_A)) move.x -= 1.0f;
+                if (input.isKeyDown(GLFW_KEY_W)) move.y += 1.0f;
+                if (input.isKeyDown(GLFW_KEY_S)) move.y -= 1.0f;
+                if (input.isKeyDown(GLFW_KEY_E)) move.z += 1.0f;
+                if (input.isKeyDown(GLFW_KEY_Q)) move.z -= 1.0f;
+                camera.onFreeCamMove(move, deltaTime);
+            }
         }
 
-        // Build pause UI
+        // Build controls UI
         ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Always);
-        ImGui::SetNextWindowSize(ImVec2(120, 50), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(120, 0), ImGuiCond_Always);
         ImGui::Begin("##controls", nullptr,
                      ImGuiWindowFlags_NoDecoration |
                      ImGuiWindowFlags_NoMove |
@@ -258,11 +275,19 @@ void Engine::mainLoop() {
         if (ImGui::Button(paused ? "  Resume" : "  Pause", ImVec2(100, 34))) {
             paused = !paused;
         }
+        if (camera.isFreeCam()) {
+            ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "  Free Cam");
+            ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "  F to exit");
+        } else {
+            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.6f, 1.0f), "  Orbit Cam");
+            ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "  F to fly");
+        }
+        const float controlsBottom = ImGui::GetWindowPos().y + ImGui::GetWindowSize().y;
         ImGui::End();
 
-        // Planet list panel
-        ImGui::SetNextWindowPos(ImVec2(10, 70), ImGuiCond_Always);
-        ImGui::SetNextWindowSize(ImVec2(140, 0), ImGuiCond_Always); // 0 height = auto
+        // Planet list panel — anchored below controls window
+        ImGui::SetNextWindowPos(ImVec2(10, controlsBottom + 8), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(140, 0), ImGuiCond_Always);
         ImGui::Begin("##planets", nullptr,
                      ImGuiWindowFlags_NoDecoration |
                      ImGuiWindowFlags_NoMove |
