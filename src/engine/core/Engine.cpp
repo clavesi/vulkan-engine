@@ -108,7 +108,7 @@ namespace {
             .bindingDescription = Vertex::getBindingDescription(),
             .attributeDescriptions = pickingAttrs,
             .descriptorBindings = {uboBinding, samplerBinding},
-            .depthFormat = depthFormat,
+            .depthFormat = vk::Format::eUndefined, // no depth testing for picking
             .samples = vk::SampleCountFlagBits::e1,
             .pushConstantSize = sizeof(glm::mat4) + sizeof(uint32_t), // no MSAA for picking
             .colorAttachmentFormat = vk::Format::eR32Uint,

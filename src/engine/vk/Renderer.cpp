@@ -85,6 +85,7 @@ void Renderer::drawFrame(
     if (acquireResult == vk::Result::eErrorOutOfDateKHR) {
         swapChain.recreate();
         createPickingResources();
+        isFirstFrame = true; // Reset for new swapchain
         return;
     }
     // On other success codes than eSuccess and eSuboptimalKHR we just throw an exception.
@@ -143,6 +144,7 @@ void Renderer::drawFrame(
     ) {
         swapChain.recreate();
         createPickingResources();
+        isFirstFrame = true; // Reset for new swapchain
     } else if (presentResult != vk::Result::eSuccess) {
         // There are no other success codes than eSuccess; on any error code, presentKHR already threw an exception.
         throw std::runtime_error("failed to present");
@@ -236,9 +238,10 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
     recordPickingPass();
 
     // Before starting rendering, transition the swapchain image to COLOR_ATTACHMENT_OPTIMAL
+    // After first frame, swapchain images are in ePresentSrcKHR layout
     transitionImageLayout(
         swapChain.image(imageIndex),
-        vk::ImageLayout::eUndefined,
+        isFirstFrame ? vk::ImageLayout::eUndefined : vk::ImageLayout::ePresentSrcKHR,
         vk::ImageLayout::eColorAttachmentOptimal,
         {}, // srcAccessMask (no need to wait for previous operations)
         vk::AccessFlagBits2::eColorAttachmentWrite,
@@ -247,7 +250,7 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
     );
     transitionImageLayout(
         swapChain.colorImageHandle(),
-        vk::ImageLayout::eUndefined,
+        isFirstFrame ? vk::ImageLayout::eUndefined : vk::ImageLayout::eColorAttachmentOptimal,
         vk::ImageLayout::eColorAttachmentOptimal,
         {},
         vk::AccessFlagBits2::eColorAttachmentWrite,
@@ -391,6 +394,9 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
     );
 
     commandBuffer.end();
+    
+    // Mark that we've completed the first frame
+    isFirstFrame = false;
 }
 
 void Renderer::updateUniformBuffer(
@@ -482,30 +488,37 @@ void Renderer::onSceneReady() {
 void Renderer::createPickingResources() {
     const auto [width, height] = swapChain.extent();
 
-    // R32_UINT - one uint32 per pixel storing object ID
-    pickingImage.emplace(
-        device,
-        width,
-        height,
-        1,
-        vk::SampleCountFlagBits::e1,
-        vk::Format::eR32Uint,
-        vk::ImageTiling::eOptimal,
-        vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc,
-        vk::MemoryPropertyFlagBits::eDeviceLocal
-    );
+    pickingImages.reserve(MAX_FRAMES_IN_FLIGHT);
+    pickingImageViews.reserve(MAX_FRAMES_IN_FLIGHT);
+    pickingReadbackBuffers.reserve(MAX_FRAMES_IN_FLIGHT);
+    pickingReadbackMapped.reserve(MAX_FRAMES_IN_FLIGHT);
 
-    pickingImageView = pickingImage->createView(vk::ImageAspectFlagBits::eColor);
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+        // R32_UINT - one uint32 per pixel storing object ID
+        pickingImages.emplace_back(
+            device,
+            width,
+            height,
+            1,
+            vk::SampleCountFlagBits::e1,
+            vk::Format::eR32Uint,
+            vk::ImageTiling::eOptimal,
+            vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc,
+            vk::MemoryPropertyFlagBits::eDeviceLocal
+        );
 
-    // 1x1 readback buffer
-    pickingReadbackBuffer.emplace(
-        device,
-        sizeof(uint32_t),
-        vk::BufferUsageFlagBits::eTransferDst,
-        vk::MemoryPropertyFlagBits::eHostVisible |
-        vk::MemoryPropertyFlagBits::eHostCoherent
-    );
-    pickingReadbackMapped = pickingReadbackBuffer->mapPersistent();
+        pickingImageViews.emplace_back(pickingImages[i]->createView(vk::ImageAspectFlagBits::eColor));
+
+        // 1x1 readback buffer
+        pickingReadbackBuffers.emplace_back(
+            device,
+            sizeof(uint32_t),
+            vk::BufferUsageFlagBits::eTransferDst,
+            vk::MemoryPropertyFlagBits::eHostVisible |
+            vk::MemoryPropertyFlagBits::eHostCoherent
+        );
+        pickingReadbackMapped.push_back(pickingReadbackBuffers[i]->mapPersistent());
+    }
 }
 
 
@@ -513,9 +526,10 @@ void Renderer::recordPickingPass() const {
     const auto &cmd = commandBuffers[frameIndex];
 
     // Transition picking image to color attachment
+    // Use eTransferSrcOptimal as oldLayout after first frame (matches end state)
     transitionImageLayout(
-        *pickingImage->handle(),
-        vk::ImageLayout::eUndefined,
+        *pickingImages[frameIndex]->handle(),
+        frameIndex == 0 ? vk::ImageLayout::eUndefined : vk::ImageLayout::eTransferSrcOptimal,
         vk::ImageLayout::eColorAttachmentOptimal,
         {},
         vk::AccessFlagBits2::eColorAttachmentWrite,
@@ -528,7 +542,7 @@ void Renderer::recordPickingPass() const {
     constexpr vk::ClearValue clearValue(clearId);
 
     vk::RenderingAttachmentInfo colorAttachment{
-        .imageView = *pickingImageView,
+        .imageView = *pickingImageViews[frameIndex],
         .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
         .loadOp = vk::AttachmentLoadOp::eClear,
         .storeOp = vk::AttachmentStoreOp::eStore,
@@ -541,19 +555,11 @@ void Renderer::recordPickingPass() const {
         .layerCount = 1,
         .colorAttachmentCount = 1,
         .pColorAttachments = &colorAttachment
-        // no depth attachment — we don't need depth for picking
+        // no depth attachment — depth testing disabled for picking
     };
 
     cmd.beginRendering(renderingInfo);
     cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, pickingPipeline.handle());
-
-    cmd.bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics,
-        pickingPipeline.layout(),
-        0,
-        *descriptorSets[0][frameIndex],
-        nullptr
-    );
 
     cmd.setViewport(0, vk::Viewport(
                         0.0f, 0.0f,
@@ -564,9 +570,22 @@ void Renderer::recordPickingPass() const {
     cmd.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), extent));
 
     for (const auto &obj: scene.getObjects()) {
+        const uint32_t objIdx = static_cast<uint32_t>(&obj - scene.getObjects().data());
+
+        // Bind per-object descriptor set (guards against empty scene)
+        if (objIdx < descriptorSets.size()) {
+            cmd.bindDescriptorSets(
+                vk::PipelineBindPoint::eGraphics,
+                pickingPipeline.layout(),
+                0,
+                *descriptorSets[objIdx][frameIndex],
+                nullptr
+            );
+        }
+
         const PushConstantData pushData{
             .model = obj.transform.matrix(),
-            .objectId = static_cast<uint32_t>(&obj - scene.getObjects().data())
+            .objectId = objIdx
         };
         cmd.pushConstants<PushConstantData>(
             pickingPipeline.layout(),
@@ -585,7 +604,7 @@ void Renderer::recordPickingPass() const {
 
     // Transition picking image to transfer source for readback
     transitionImageLayout(
-        *pickingImage->handle(),
+        *pickingImages[frameIndex]->handle(),
         vk::ImageLayout::eColorAttachmentOptimal,
         vk::ImageLayout::eTransferSrcOptimal,
         vk::AccessFlagBits2::eColorAttachmentWrite,
@@ -617,9 +636,9 @@ void Renderer::recordPickingPass() const {
     };
 
     cmd.copyImageToBuffer(
-        *pickingImage->handle(),
+        *pickingImages[frameIndex]->handle(),
         vk::ImageLayout::eTransferSrcOptimal,
-        pickingReadbackBuffer->handle(),
+        pickingReadbackBuffers[frameIndex]->handle(),
         copyRegion
     );
 
@@ -640,6 +659,6 @@ void Renderer::recordPickingPass() const {
 }
 
 uint32_t Renderer::readPickedObject() const {
-    if (!pickingReadbackMapped) return UINT32_MAX;
-    return *static_cast<const uint32_t *>(pickingReadbackMapped);
+    if (pickingReadbackMapped.empty() || !pickingReadbackMapped[frameIndex]) return UINT32_MAX;
+    return *static_cast<const uint32_t *>(pickingReadbackMapped[frameIndex]);
 }

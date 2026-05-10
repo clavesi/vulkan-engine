@@ -99,6 +99,7 @@ private:
     std::vector<vk::raii::Semaphore> renderFinishedSemaphores;
     std::vector<vk::raii::Fence> inFlightFences;
     uint32_t frameIndex = 0;
+    mutable bool isFirstFrame = true; // Track first frame for layout transitions
 
     // One uniform buffer per frame in flight so the CPU can write
     // the next frame's data without disturbing what the GPU is currently reading
@@ -111,9 +112,9 @@ private:
     std::vector<std::vector<vk::raii::DescriptorSet> > descriptorSets;
 
     // Picking - renders object IDs, reads back pixel under cursor
-    std::optional<Image> pickingImage;
-    vk::raii::ImageView pickingImageView = nullptr;
-    std::optional<Buffer> pickingReadbackBuffer;
-    mutable void *pickingReadbackMapped = nullptr;
+    std::vector<std::optional<Image>> pickingImages;
+    std::vector<vk::raii::ImageView> pickingImageViews;
+    std::vector<std::optional<Buffer>> pickingReadbackBuffers;
+    mutable std::vector<void *> pickingReadbackMapped;
     mutable uint32_t hoveredObjectId = UINT32_MAX; // max = nothing hovered
 };
