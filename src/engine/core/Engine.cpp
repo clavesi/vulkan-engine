@@ -180,7 +180,7 @@ Engine::Engine(EngineConfig cfg)
       ),
       outlinePipeline(
           device,
-          makeOutlinePipelineSpec("shaders/shader_outline.spv", swapChain.format(), swapChain.depthFormat(),
+          makeOutlinePipelineSpec(config.outlineShaderPath, swapChain.format(), swapChain.depthFormat(),
                                   swapChain.samples())
       ),
       renderer(device, swapChain, pipeline, pickingPipeline, outlinePipeline, config, scene, input),
