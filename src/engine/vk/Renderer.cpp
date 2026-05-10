@@ -529,7 +529,7 @@ void Renderer::recordPickingPass() const {
     // Use eTransferSrcOptimal as oldLayout after first frame (matches end state)
     transitionImageLayout(
         *pickingImages[frameIndex]->handle(),
-        frameIndex == 0 ? vk::ImageLayout::eUndefined : vk::ImageLayout::eTransferSrcOptimal,
+        isFirstFrame ? vk::ImageLayout::eUndefined : vk::ImageLayout::eTransferSrcOptimal,
         vk::ImageLayout::eColorAttachmentOptimal,
         {},
         vk::AccessFlagBits2::eColorAttachmentWrite,
@@ -572,8 +572,8 @@ void Renderer::recordPickingPass() const {
     for (const auto &obj: scene.getObjects()) {
         const uint32_t objIdx = static_cast<uint32_t>(&obj - scene.getObjects().data());
 
-        // Bind per-object descriptor set (guards against empty scene)
-        if (objIdx < descriptorSets.size()) {
+        // Bind per-object descriptor set (skip if descriptor sets not yet created)
+        if (!descriptorSets.empty() && objIdx < descriptorSets.size()) {
             cmd.bindDescriptorSets(
                 vk::PipelineBindPoint::eGraphics,
                 pickingPipeline.layout(),
