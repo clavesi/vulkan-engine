@@ -488,12 +488,18 @@ void Renderer::onSceneReady() {
 void Renderer::createPickingResources() {
     const auto [width, height] = swapChain.extent();
 
+    // Clear existing resources before recreating (e.g., after swapchain recreation)
+    pickingImages.clear();
+    pickingImageViews.clear();
+    pickingReadbackBuffers.clear();
+    pickingReadbackMapped.clear();
+
     pickingImages.reserve(MAX_FRAMES_IN_FLIGHT);
     pickingImageViews.reserve(MAX_FRAMES_IN_FLIGHT);
     pickingReadbackBuffers.reserve(MAX_FRAMES_IN_FLIGHT);
     pickingReadbackMapped.reserve(MAX_FRAMES_IN_FLIGHT);
 
-    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
         // R32_UINT - one uint32 per pixel storing object ID
         pickingImages.emplace_back(
             device,
