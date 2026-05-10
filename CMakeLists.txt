@@ -37,13 +37,18 @@ find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(glm REQUIRED)
 find_package(stb REQUIRED)
-find_package(tinyobjloader CONFIG REQUIRED)
+find_package(tinyobjloader REQUIRED)
+find_package(tinygltf REQUIRED)
+find_package(Imgui REQUIRED)
+
+get_target_property(IMGUI_LOCATION imgui::imgui IMPORTED_LOCATION_DEBUG)
+message(STATUS "ImGui debug lib: ${IMGUI_LOCATION}")
 
 # Shader compilation with Slang (optional, but preferred when slangc is available)
 # Use a relative glob pattern so paths like "[0]Vulkan" do not interfere with matching.
-file(GLOB SLANG_SHADER_SOURCES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "shaders/*.slang")
-if (NOT SLANG_SHADER_SOURCES AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/shader.slang")
-    set(SLANG_SHADER_SOURCES "shaders/shader.slang")
+file(GLOB SLANG_SHADER_SOURCES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "shaders/*.hlsl")
+if (NOT SLANG_SHADER_SOURCES AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/shader.hlsl")
+    set(SLANG_SHADER_SOURCES "shaders/shader.hlsl")
 endif ()
 find_program(SLANGC_EXECUTABLE slangc HINTS "$ENV{VULKAN_SDK}/bin")
 
@@ -88,23 +93,36 @@ add_executable(vlk_engine
         # Main
         src/main.cpp
         # IO
-        src/io/FileIO.cpp
-        src/io/ModelLoader.cpp
+        src/engine/io/FileIO.cpp
+        src/engine/io/ModelLoader.cpp
         # Core
-        src/core/Engine.cpp
-        src/core/Window.cpp
-        src/core/Mesh.cpp
+        src/engine/core/Engine.cpp
+        src/engine/core/Window.cpp
+        src/engine/core/Input.cpp
+        src/engine/core/Camera.cpp
+        src/engine/core/Scene.cpp
+        src/engine/core/Mesh.cpp
+        src/engine/core/MeshGenerator.cpp
         # Vulkan wrappers
-        src/vk/Instance.cpp
-        src/vk/Device.cpp
-        src/vk/SwapChain.cpp
-        src/vk/Pipeline.cpp
-        src/vk/Buffer.cpp
-        src/vk/Image.cpp
-        src/vk/Sampler.cpp
-        src/vk/Renderer.cpp
+        src/engine/vk/Instance.cpp
+        src/engine/vk/Device.cpp
+        src/engine/vk/SwapChain.cpp
+        src/engine/vk/Pipeline.cpp
+        src/engine/vk/Buffer.cpp
+        src/engine/vk/Image.cpp
+        src/engine/vk/Sampler.cpp
+        src/engine/vk/Renderer.cpp
+        src/engine/vk/TextureLoader.cpp
+        # UI - ImGui
+        src/engine/ui/ImGuiRenderer.cpp
+        # App
+        src/app/SolarSystem.cpp
 )
-target_include_directories(vlk_engine PRIVATE src)
+target_include_directories(vlk_engine PRIVATE
+        src
+        src/engine
+        src/app
+)
 add_dependencies(vlk_engine shaders)
 
 # Prefer imported target include propagation; fallback to module variable.
@@ -138,6 +156,15 @@ endif ()
 # Link tinyobjloader if available as a target
 if (TARGET tinyobjloader::tinyobjloader)
     target_link_libraries(vlk_engine PRIVATE tinyobjloader::tinyobjloader)
+endif ()
+
+# Link tinygltf if available as a target
+if (TARGET tinygltf::tinygltf)
+    target_link_libraries(vlk_engine PRIVATE tinygltf::tinygltf)
+endif ()
+
+if (TARGET imgui::imgui)
+    target_link_libraries(vlk_engine PRIVATE imgui::imgui)
 endif ()
 
 # Ensure C++20 is set on the target
