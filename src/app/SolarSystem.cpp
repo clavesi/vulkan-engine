@@ -2,6 +2,8 @@
 #include "core/OrbitalBody.h"
 #include "core/Transform.h"
 
+#include <glm/gtc/constants.hpp>
+
 namespace app {
     const std::vector<PlanetDef> SolarSystem::planets = {
         {"Mercury", 2439.7f, 0.387f, 0.241f, "textures/solar/2k_mercury.jpg"},

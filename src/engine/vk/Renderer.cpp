@@ -9,9 +9,12 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <algorithm>
+#include <array>
 #include <cassert>
-#include <stdexcept>
 #include <chrono>
+#include <cstring>
+#include <stdexcept>
 
 Renderer::Renderer(
     const Device &device,

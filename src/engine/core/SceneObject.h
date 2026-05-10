@@ -6,6 +6,7 @@
 #include "vk/Texture.h"
 
 #include <optional>
+#include <string>
 
 class Pipeline; // forward declare to avoid circular includes
 

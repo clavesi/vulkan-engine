@@ -31,7 +31,8 @@ ImGuiRenderer::ImGuiRenderer(const Device &device, SwapChain &swapChain,
     pool_info.pPoolSizes = &pool_size;
 
     VkDescriptorPool rawPool;
-    vkCreateDescriptorPool(*device.logical(), &pool_info, nullptr, &rawPool);
+    VkResult result = vkCreateDescriptorPool(*device.logical(), &pool_info, nullptr, &rawPool);
+    check_vk_result(result);
     imguiPool = vk::raii::DescriptorPool(device.logical(), rawPool);
 
     IMGUI_CHECKVERSION();
@@ -61,6 +62,12 @@ ImGuiRenderer::ImGuiRenderer(const Device &device, SwapChain &swapChain,
     init_info.PipelineInfoMain.PipelineRenderingCreateInfo.depthAttachmentFormat = depthFormat;
 
     ImGui_ImplVulkan_Init(&init_info);
+
+    // Upload ImGui font texture
+    auto cmd = device.beginSingleTimeCommands();
+    ImGui_ImplVulkan_CreateFontsTexture(*cmd);
+    device.endSingleTimeCommands(cmd);
+    ImGui_ImplVulkan_DestroyFontUploadObjects();
 }
 
 ImGuiRenderer::~ImGuiRenderer() {
