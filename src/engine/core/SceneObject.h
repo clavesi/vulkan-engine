@@ -15,5 +15,6 @@ struct SceneObject {
     const Texture *texture = nullptr;
     Transform transform;
     std::optional<OrbitalBody> orbital; // absent = stationary
+    std::optional<uint32_t> parentIndex;
     std::string name;
 };

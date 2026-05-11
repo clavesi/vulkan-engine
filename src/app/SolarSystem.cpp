@@ -22,14 +22,15 @@ namespace app {
         // Sun
         textures.emplace_back();
         vk_util::loadTexture(device, "textures/solar/2k_sun.jpg", textures.back());
-        constexpr float sunRadius = SUN_RADIUS;
         scene.addObject(
             sphere, unlitPipeline, textures.back(),
-            Transform{.scale = {sunRadius, sunRadius, sunRadius}},
+            Transform{.scale = {SUN_RADIUS, SUN_RADIUS, SUN_RADIUS}},
             std::nullopt, "Sun"
         );
 
         // Planets
+        std::unordered_map<std::string, uint32_t> planetIndices;
+        uint32_t idx = 1; // sun is 0
         for (const auto &p: planets) {
             textures.emplace_back();
             vk_util::loadTexture(device, p.texturePath, textures.back());
@@ -44,6 +45,27 @@ namespace app {
                 OrbitalBody{.radius = orbit, .speed = speed},
                 p.name
             );
+
+            planetIndices[p.name] = idx++;
         }
+
+        // Earth's moon
+        textures.emplace_back();
+        vk_util::loadTexture(device, "textures/solar/2k_moon.jpg", textures.back());
+        const uint32_t earthIdx = planetIndices.at("Earth");
+        constexpr float moonRadius = 1737.4f * RADIUS_SCALE;
+        constexpr float parentRadius = 6371.0f * RADIUS_SCALE; // Earth's visual radius
+        constexpr float moonOrbit = parentRadius * MOON_ORBIT_RADII;
+        constexpr float moonSpeed = (glm::two_pi<float>() / (27.32f / DAYS_PER_YEAR)) * PERIOD_SCALE;
+        scene.addObject(
+            sphere, litPipeline, textures.back(),
+            Transform{
+                .position = scene.getObjects()[earthIdx].transform.position + glm::vec3{moonOrbit, 0.0f, 0.0f},
+                .scale = {moonRadius, moonRadius, moonRadius}
+            },
+            OrbitalBody{.radius = moonOrbit, .speed = moonSpeed},
+            "Moon",
+            earthIdx
+        );
     }
 } // namespace app

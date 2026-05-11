@@ -13,7 +13,8 @@ public:
         const Texture &texture,
         Transform transform = {},
         std::optional<OrbitalBody> orbital = std::nullopt,
-        std::string name = ""
+        std::string name = "",
+        std::optional<uint32_t> parentIndex = std::nullopt
     );
 
     void update(float deltaTime);
