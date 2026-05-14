@@ -74,7 +74,7 @@ private:
     static constexpr float pitchMax = 1.5f; // just under +π/2
 
     // How fast the camera interpolates — higher = snappier
-    static constexpr float targetSmoothSpeed = 8.0f;
+    static constexpr float targetSmoothSpeed = 50.0f;
     static constexpr float distanceSmoothSpeed = 8.0f;
 
     static constexpr float freeLookSensitivity = 0.003f;
