@@ -69,4 +69,22 @@ namespace MeshGenerator {
 
         return {std::move(vertices), std::move(indices)};
     }
+
+    std::pair<std::vector<Vertex>, std::vector<uint32_t> > circle(
+        const float radius,
+        const uint32_t segments
+    ) {
+        std::vector<Vertex> vertices;
+        vertices.reserve(segments + 1);
+
+        for (uint32_t i = 0; i <= segments; ++i) {
+            const float angle = (static_cast<float>(i) / static_cast<float>(segments)) * glm::two_pi<float>();
+            Vertex v{};
+            v.pos = {std::cos(angle) * radius, std::sin(angle) * radius, 0.0f};
+            vertices.push_back(v);
+        }
+
+        // Empty indices — drawn as line strip directly
+        return {std::move(vertices), {}};
+    }
 }

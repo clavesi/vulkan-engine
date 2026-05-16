@@ -27,6 +27,7 @@ public:
         const Pipeline &pipeline,
         const Pipeline &pickingPipeline,
         const Pipeline &outlinePipeline,
+        const Pipeline &orbitPipeline,
         const EngineConfig &config,
         const Scene &scene,
         const Input &input
@@ -74,6 +75,7 @@ private:
 
     void createDescriptorPool();
     void createDescriptorSets();
+    void createOrbitDescriptorSets();
 
     void createPickingResources();
     void recordPickingPass() const;
@@ -84,6 +86,7 @@ private:
     const Pipeline &pipeline;
     const Pipeline &pickingPipeline;
     const Pipeline &outlinePipeline;
+    const Pipeline &orbitPipeline;
     const EngineConfig &config;
     const Scene &scene;
     const Input &input;
@@ -109,6 +112,8 @@ private:
     vk::raii::DescriptorPool descriptorPool = nullptr;
     // One descriptor set per frame in flight, each pointing at that frame's uniform buffer
     std::vector<std::vector<vk::raii::DescriptorSet> > descriptorSets;
+    // One descriptor set per frame for orbit circles — UBO only, no texture
+    std::vector<vk::raii::DescriptorSet> orbitDescriptorSets;
 
     // Picking - renders object IDs, reads back pixel under cursor
     std::optional<Image> pickingImage;

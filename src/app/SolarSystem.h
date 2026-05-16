@@ -38,9 +38,12 @@ namespace app {
         static constexpr float MOON_ORBIT_RADII = 5.0f; // N parent radii
         static constexpr float DAYS_PER_YEAR = 365.25f;
 
-        static void init(Scene &scene, const Mesh &sphere,
-                         const Pipeline &litPipeline, const Pipeline &unlitPipeline,
-                         std::list<Texture> &textures, const Device &device);
+        static void init(
+            Scene &scene, const Mesh &sphere,
+            const Pipeline &litPipeline, const Pipeline &unlitPipeline,
+            std::list<Texture> &textures, const Device &device,
+            std::list<Mesh> &orbitMeshes
+        );
 
     private:
         static const std::vector<PlanetDef> planets;
@@ -49,6 +52,6 @@ namespace app {
                            std::list<Texture> &textures, const Device &device);
 
         static void addPlanets(Scene &scene, const Mesh &sphere, const Pipeline &litPipeline,
-                               std::list<Texture> &textures, const Device &device);
+                               std::list<Texture> &textures, const Device &device, std::list<Mesh> &orbitMeshes);
     };
 } // namespace app

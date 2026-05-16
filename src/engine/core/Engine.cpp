@@ -153,6 +153,37 @@ namespace {
             .depthCompareOp = vk::CompareOp::eLess,
         };
     }
+
+    PipelineSpec makeOrbitPipelineSpec(
+        const std::string &shaderPath,
+        const vk::Format colorFormat,
+        const vk::Format depthFormat,
+        const vk::SampleCountFlagBits samples
+    ) {
+        const std::vector<vk::VertexInputAttributeDescription> orbitAttrs = {
+            Vertex::getAttributeDescriptions()[0], // pos only
+        };
+
+        vk::DescriptorSetLayoutBinding uboBinding{
+            0, vk::DescriptorType::eUniformBuffer, 1,
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+            nullptr
+        };
+
+        return PipelineSpec{
+            .shaderPath = shaderPath,
+            .colorFormat = colorFormat,
+            .bindingDescription = Vertex::getBindingDescription(),
+            .attributeDescriptions = orbitAttrs,
+            .descriptorBindings = {uboBinding},
+            .depthFormat = depthFormat,
+            .samples = samples,
+            .pushConstantSize = sizeof(glm::mat4) + sizeof(glm::vec3),
+            .depthWriteEnable = false,
+            .topology = vk::PrimitiveTopology::eLineStrip,
+            .blendEnable = true
+        };
+    }
 } // namespace
 
 Engine::Engine(EngineConfig cfg)
@@ -182,7 +213,12 @@ Engine::Engine(EngineConfig cfg)
           makeOutlinePipelineSpec(config.outlineShaderPath, swapChain.format(), swapChain.depthFormat(),
                                   swapChain.samples())
       ),
-      renderer(device, swapChain, pipeline, pickingPipeline, outlinePipeline, config, scene, input),
+      orbitPipeline(
+          device,
+          makeOrbitPipelineSpec(config.orbitShaderPath, swapChain.format(), swapChain.depthFormat(),
+                                swapChain.samples())
+      ),
+      renderer(device, swapChain, pipeline, pickingPipeline, outlinePipeline, orbitPipeline, config, scene, input),
       imguiRenderer(device, swapChain, instance.get(), window.glfwHandle()) {
     input.init(window.glfwHandle());
     imguiRenderer.initGlfw(window.glfwHandle());
@@ -344,5 +380,5 @@ void Engine::initScene() {
     meshes.emplace_back(device, vertices, indices);
     const Mesh &sphere = meshes.back();
 
-    solarSystem.init(scene, sphere, pipeline, unlitPipeline, textures, device);
+    solarSystem.init(scene, sphere, pipeline, unlitPipeline, textures, device, orbitMeshes);
 }

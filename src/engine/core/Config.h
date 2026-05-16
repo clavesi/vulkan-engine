@@ -11,6 +11,7 @@ struct EngineConfig {
     std::string unlitShaderPath = "shaders/shader_unlit.spv";
     std::string pickingShaderPath = "shaders/picking.spv";
     std::string outlineShaderPath = "shaders/shader_outline.spv";
+    std::string orbitShaderPath = "shaders/shader_orbit.spv";
     std::string texturePath = "textures/viking_room.png";
     std::string modelPath = "models/viking_room.obj";
 
@@ -20,5 +21,5 @@ struct EngineConfig {
     float cameraPitch = 0.3f; // slight downward tilt to see the model
     float cameraFov = 45.0f;
     float cameraNear = 0.1f;
-    float cameraFar = 3000.0f;
+    float cameraFar = 20000.0f;
 };

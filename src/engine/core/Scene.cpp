@@ -2,20 +2,6 @@
 
 #include <cmath>
 
-void Scene::addObject(
-    const Mesh &mesh,
-    const Pipeline &pipeline,
-    const Texture &texture,
-    Transform transform,
-    std::optional<OrbitalBody> orbital,
-    std::string name,
-    std::optional<uint32_t> parentIndex
-) {
-    objects.push_back(
-        {&mesh, &pipeline, &texture, std::move(transform), std::move(orbital), parentIndex, std::move(name)}
-    );
-}
-
 void Scene::update(float deltaTime) {
     // Pass 1: no parent
     for (auto &obj: objects) {
@@ -45,4 +31,22 @@ void Scene::update(float deltaTime) {
                                      0.0f
                                  };
     }
+}
+
+void Scene::addObject(
+    const Mesh &mesh,
+    const Pipeline &pipeline,
+    const Texture &texture,
+    Transform transform,
+    std::optional<OrbitalBody> orbital,
+    std::string name,
+    std::optional<uint32_t> parentIndex
+) {
+    objects.push_back(
+        {&mesh, &pipeline, &texture, std::move(transform), std::move(orbital), parentIndex, std::move(name)}
+    );
+}
+
+void Scene::addOrbitCircle(const Mesh &mesh, glm::vec3 color) {
+    orbitCircles.push_back({&mesh, color});
 }

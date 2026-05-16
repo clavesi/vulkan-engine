@@ -19,6 +19,7 @@ Renderer::Renderer(
     const Pipeline &pipeline,
     const Pipeline &pickingPipeline,
     const Pipeline &outlinePipeline,
+    const Pipeline &orbitPipeline,
     const EngineConfig &config,
     const Scene &scene,
     const Input &input
@@ -28,6 +29,7 @@ Renderer::Renderer(
       pipeline(pipeline),
       pickingPipeline(pickingPipeline),
       outlinePipeline(outlinePipeline),
+      orbitPipeline(orbitPipeline),
       config(config),
       scene(scene),
       input(input) {
@@ -299,6 +301,7 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
     );
     commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), extent));
 
+    // ===== Objects =====
     for (const auto &obj: scene.getObjects()) {
         const uint32_t objIdx = static_cast<uint32_t>(&obj - scene.getObjects().data());
 
@@ -332,7 +335,34 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
         commandBuffer.drawIndexed(obj.mesh->indexCount(), 1, 0, 0, 0);
     }
 
-    // Outline pass — draw hovered object slightly scaled up
+    // ===== Planet orbits =====
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, orbitPipeline.handle());
+    commandBuffer.bindDescriptorSets(
+        vk::PipelineBindPoint::eGraphics,
+        orbitPipeline.layout(), 0,
+        *orbitDescriptorSets[frameIndex], nullptr
+    );
+
+    for (const auto &circle: scene.getOrbitCircles()) {
+        struct OrbitPushConstant {
+            glm::mat4 model;
+            glm::vec3 color;
+        };
+        const OrbitPushConstant push{
+            .model = glm::mat4(1.0f),
+            .color = circle.color
+        };
+        commandBuffer.pushConstants<OrbitPushConstant>(
+            orbitPipeline.layout(),
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+            0, push
+        );
+        constexpr vk::DeviceSize offset = 0;
+        commandBuffer.bindVertexBuffers(0, *circle.mesh->vertexBuffer().handle(), offset);
+        commandBuffer.draw(circle.mesh->vertexCount(), 1, 0, 0);
+    }
+
+    // ===== Outline pass — draw hovered object slightly scaled up =====
     if (hoveredObjectId != UINT32_MAX && hoveredObjectId < scene.getObjects().size()) {
         const auto &obj = scene.getObjects()[hoveredObjectId];
 
@@ -404,18 +434,20 @@ void Renderer::updateUniformBuffer(
 
 void Renderer::createDescriptorPool() {
     const uint32_t objectCount = static_cast<uint32_t>(scene.getObjects().size());
-    const uint32_t setCount = objectCount * MAX_FRAMES_IN_FLIGHT;
+    const uint32_t objectSetCount = objectCount * MAX_FRAMES_IN_FLIGHT;
+    constexpr uint32_t orbitSetCount = MAX_FRAMES_IN_FLIGHT;
+    const uint32_t totalSetCount = objectSetCount + orbitSetCount;
 
     std::array<vk::DescriptorPoolSize, 2> poolSizes{
         {
-            {.type = vk::DescriptorType::eUniformBuffer, .descriptorCount = setCount},
-            {.type = vk::DescriptorType::eCombinedImageSampler, .descriptorCount = setCount}
+            {.type = vk::DescriptorType::eUniformBuffer, .descriptorCount = totalSetCount},
+            {.type = vk::DescriptorType::eCombinedImageSampler, .descriptorCount = objectSetCount},
         }
     };
 
     const vk::DescriptorPoolCreateInfo poolInfo{
         .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
-        .maxSets = setCount,
+        .maxSets = totalSetCount,
         .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
         .pPoolSizes = poolSizes.data()
     };
@@ -471,9 +503,36 @@ void Renderer::createDescriptorSets() {
     }
 }
 
+void Renderer::createOrbitDescriptorSets() {
+    std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, *orbitPipeline.descriptorLayout());
+    const vk::DescriptorSetAllocateInfo allocInfo{
+        .descriptorPool = descriptorPool,
+        .descriptorSetCount = static_cast<uint32_t>(layouts.size()),
+        .pSetLayouts = layouts.data()
+    };
+    orbitDescriptorSets = device.logical().allocateDescriptorSets(allocInfo);
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+        vk::DescriptorBufferInfo bufferInfo{
+            .buffer = uniformBuffers[i].handle(),
+            .offset = 0,
+            .range = sizeof(UniformBufferObject)
+        };
+        vk::WriteDescriptorSet write{
+            .dstSet = orbitDescriptorSets[i],
+            .dstBinding = 0,
+            .descriptorCount = 1,
+            .descriptorType = vk::DescriptorType::eUniformBuffer,
+            .pBufferInfo = &bufferInfo
+        };
+        device.logical().updateDescriptorSets(write, {});
+    }
+}
+
 void Renderer::onSceneReady() {
     createDescriptorPool();
     createDescriptorSets();
+    createOrbitDescriptorSets();
 }
 
 void Renderer::createPickingResources() {

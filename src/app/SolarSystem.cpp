@@ -1,4 +1,6 @@
 #include "SolarSystem.h"
+
+#include "core/MeshGenerator.h"
 #include "core/OrbitalBody.h"
 #include "core/Transform.h"
 
@@ -30,13 +32,25 @@ namespace app {
         {"Neptune", 24622.0f, 30.07f, 164.8f, "textures/solar/2k_neptune.jpg"},
     };
 
+    static const std::vector<glm::vec3> planetColors = {
+        {0.6f, 0.6f, 0.6f}, // Mercury — grey
+        {0.9f, 0.8f, 0.5f}, // Venus — yellowish
+        {0.2f, 0.5f, 0.9f}, // Earth — blue
+        {0.8f, 0.4f, 0.2f}, // Mars — red
+        {0.8f, 0.7f, 0.5f}, // Jupiter — tan
+        {0.9f, 0.8f, 0.6f}, // Saturn — pale gold
+        {0.5f, 0.8f, 0.9f}, // Uranus — cyan
+        {0.3f, 0.4f, 0.9f}, // Neptune — blue
+    };
+
     void SolarSystem::init(
         Scene &scene, const Mesh &sphere,
         const Pipeline &litPipeline, const Pipeline &unlitPipeline,
-        std::list<Texture> &textures, const Device &device
+        std::list<Texture> &textures, const Device &device,
+        std::list<Mesh> &orbitMeshes
     ) {
         addSun(scene, sphere, unlitPipeline, textures, device);
-        addPlanets(scene, sphere, litPipeline, textures, device);
+        addPlanets(scene, sphere, litPipeline, textures, device, orbitMeshes);
     }
 
     void SolarSystem::addSun(
@@ -54,10 +68,12 @@ namespace app {
 
     void SolarSystem::addPlanets(
         Scene &scene, const Mesh &sphere, const Pipeline &litPipeline,
-        std::list<Texture> &textures, const Device &device
+        std::list<Texture> &textures, const Device &device,
+        std::list<Mesh> &orbitMeshes
     ) {
         // Sun is index 0, planets start at 1
         uint32_t idx = 1;
+        size_t colorIdx = 0;
         for (const auto &planet: planets) {
             textures.emplace_back();
             vk_util::loadTexture(device, planet.texturePath, textures.back());
@@ -72,6 +88,11 @@ namespace app {
                 OrbitalBody{.radius = planetOrbit, .speed = planetSpeed},
                 planet.name
             );
+
+            // Orbit circle
+            auto [verts, indices] = MeshGenerator::circle(planetOrbit, 128);
+            orbitMeshes.emplace_back(device, verts, indices);
+            scene.addOrbitCircle(orbitMeshes.back(), planetColors[colorIdx++]);
 
             const uint32_t planetIdx = idx++;
             const float parentRadius = r; // already scaled

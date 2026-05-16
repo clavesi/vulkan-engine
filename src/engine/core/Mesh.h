@@ -14,18 +14,20 @@ public:
 
     Mesh(const Mesh &) = delete;
     Mesh &operator=(const Mesh &) = delete;
-
     // Movable for std::optional<Mesh>; not move-assignable because of the const Device& reference
     Mesh(Mesh &&) noexcept = default;
     Mesh &operator=(Mesh &&) = delete;
 
     const Buffer &vertexBuffer() const { return vb; }
-    const Buffer &indexBuffer() const { return ib; }
+    const Buffer &indexBuffer() const { return *ib; }
     uint32_t indexCount() const { return idxCount; }
+    uint32_t vertexCount() const { return vtxCount; }
+    bool hasIndices() const { return ib.has_value(); }
 
 private:
     const Device &device;
     Buffer vb;
-    Buffer ib;
+    std::optional<Buffer> ib;
     uint32_t idxCount;
+    uint32_t vtxCount;
 };
