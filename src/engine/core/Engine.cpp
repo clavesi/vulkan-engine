@@ -323,7 +323,7 @@ void Engine::mainLoop() {
 
         // Planet list panel — anchored below controls window
         ImGui::SetNextWindowPos(ImVec2(10, controlsBottom + 8), ImGuiCond_Always);
-        ImGui::SetNextWindowSize(ImVec2(140, 0), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(150, 0), ImGuiCond_Always);
         ImGui::Begin("##planets", nullptr,
                      ImGuiWindowFlags_NoDecoration |
                      ImGuiWindowFlags_NoMove |
@@ -333,7 +333,10 @@ void Engine::mainLoop() {
         const auto &objects = scene.getObjects();
         for (size_t i = 0; i < objects.size(); ++i) {
             const auto &obj = objects[i];
+            // Only top-level objects (no parent) in main loop
+            if (obj.parentIndex) continue;
             if (obj.name.empty()) continue;
+
             const bool isFollowing = camera.isFollowing() && camera.getFollowObjectId() == i;
             if (isFollowing) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.5f, 0.8f, 1.0f));
             if (ImGui::Button(obj.name.c_str(), ImVec2(120, 0))) {
@@ -341,6 +344,27 @@ void Engine::mainLoop() {
                 camera.setDesiredDistance(obj.transform.scale.x * 8.0f);
             }
             if (isFollowing) ImGui::PopStyleColor();
+
+            // Moons — find children of this planet and indent buttons
+            for (size_t j = 0; j < objects.size(); ++j) {
+                const auto &moon = objects[j];
+                if (!moon.parentIndex || *moon.parentIndex != i) continue;
+
+                ImGui::Indent(12.0f);
+                const bool moonFollowing = camera.isFollowing() && camera.getFollowObjectId() == j;
+                ImGui::PushStyleColor(
+                    ImGuiCol_Text,
+                    moonFollowing
+                        ? ImVec4(0.4f, 0.7f, 1.0f, 1.0f) // highlight when following
+                        : ImVec4(0.7f, 0.7f, 0.7f, 1.0f) // dimmed otherwise
+                );
+                if (ImGui::Selectable(moon.name.c_str(), moonFollowing, 0, ImVec2(104, 0))) {
+                    camera.setFollowTarget(static_cast<uint32_t>(j));
+                    camera.setDesiredDistance(moon.transform.scale.x * 8.0f);
+                }
+                ImGui::PopStyleColor();
+                ImGui::Unindent(12.0f);
+            }
         }
         ImGui::End();
 
