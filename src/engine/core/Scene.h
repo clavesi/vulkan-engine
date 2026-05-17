@@ -17,7 +17,9 @@ public:
         Transform transform = {},
         std::optional<OrbitalBody> orbital = std::nullopt,
         std::string name = "",
-        std::optional<uint32_t> parentIndex = std::nullopt
+        std::optional<uint32_t> parentIndex = std::nullopt,
+        const app::PlanetDef *bodyDef = nullptr,
+        float rotationSpeedRads = 0.0f
     );
     const std::vector<SceneObject> &getObjects() const { return objects; }
 

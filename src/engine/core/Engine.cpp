@@ -368,6 +368,32 @@ void Engine::mainLoop() {
         }
         ImGui::End();
 
+        // Planet info panel — shown when following a planet
+        if (camera.isFollowing()) {
+            const uint32_t id = camera.getFollowObjectId();
+            if (id < objects.size() && objects[id].bodyDef) {
+                const auto *def = objects[id].bodyDef;
+
+                ImGui::SetNextWindowPos(ImVec2(static_cast<float>(config.windowWidth) - 210.0f, 10.0f),
+                                        ImGuiCond_Always);
+                ImGui::SetNextWindowSize(ImVec2(200, 0), ImGuiCond_Always);
+                ImGui::Begin("##planetinfo", nullptr,
+                             ImGuiWindowFlags_NoDecoration |
+                             ImGuiWindowFlags_NoMove |
+                             ImGuiWindowFlags_NoBackground |
+                             ImGuiWindowFlags_NoBringToFrontOnFocus
+                );
+
+                ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "%s", def->name.c_str());
+                ImGui::Separator();
+                ImGui::Text("Radius:  %.0f km", def->radiusKm);
+                ImGui::Text("Day:     %.2f Earth days", def->rotationDays);
+                ImGui::Text("Year:    %.2f Earth days", def->periodDays);
+
+                ImGui::End();
+            }
+        }
+
         // Update follow target position each frame
         if (camera.isFollowing()) {
             const uint32_t id = camera.getFollowObjectId();

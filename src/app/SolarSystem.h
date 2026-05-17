@@ -3,29 +3,12 @@
 #include "core/Scene.h"
 #include "core/Mesh.h"
 #include "vk/Texture.h"
-#include "vk/Device.h"
-#include "vk/TextureLoader.h"
+#include "app/BodyDef.h"
 
 #include <list>
 #include <vector>
 
 namespace app {
-    struct MoonDef {
-        std::string name;
-        float radiusKm;
-        float periodDays;
-        std::string texturePath;
-    };
-
-    struct PlanetDef {
-        std::string name;
-        float radiusKm; // real radius — will be scaled
-        float orbitAu; // real orbital radius in AU — will be scaled
-        float periodYears; // real orbital period in Earth years
-        std::string texturePath;
-        std::vector<MoonDef> moons;
-    };
-
     class SolarSystem {
     public:
         // Scale factors

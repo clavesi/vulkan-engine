@@ -1,35 +1,35 @@
 #include "SolarSystem.h"
-
 #include "core/MeshGenerator.h"
 #include "core/OrbitalBody.h"
 #include "core/Transform.h"
+#include "vk/TextureLoader.h"
 
 namespace app {
     const std::vector<PlanetDef> SolarSystem::planets = {
-        {"Mercury", 2439.7f, 0.387f, 0.241f, "textures/solar/2k_mercury.jpg"},
-        {"Venus", 6051.8f, 0.723f, 0.615f, "textures/solar/2k_venus_atmosphere.jpg"},
+        {"Mercury", 2439.7f, 0.387f, 87.9691f, 58.646f, "textures/solar/2k_mercury.jpg"},
+        {"Venus", 6051.8f, 0.723f, 224.701f, -243.0226f, "textures/solar/2k_venus_atmosphere.jpg"},
         {
-            "Earth", 6371.0f, 1.000f, 1.000f, "textures/solar/2k_earth_daymap.jpg", {
+            "Earth", 6371.0f, 1.000f, 365.256f, 0.9973f, "textures/solar/2k_earth_daymap.jpg", {
                 {"Moon", 1737.4f, 27.32f, "textures/solar/2k_moon.jpg"},
             }
         },
         {
-            "Mars", 3389.5f, 1.524f, 1.881f, "textures/solar/2k_mars.jpg", {
+            "Mars", 3389.5f, 1.524f, 686.980f, 1.026f, "textures/solar/2k_mars.jpg", {
                 {"Phobos", 11.267f, 0.319f, "textures/solar/2k_moon.jpg"},
                 {"Deimos", 6.2f, 1.263f, "textures/solar/2k_moon.jpg"},
             }
         },
         {
-            "Jupiter", 69911.0f, 5.203f, 11.86f, "textures/solar/2k_jupiter.jpg", {
+            "Jupiter", 69911.0f, 5.203f, 4332.59f, 0.4147f, "textures/solar/2k_jupiter.jpg", {
                 {"Io", 1821.6f, 1.769f, "textures/solar/2k_moon.jpg"},
                 {"Europa", 1560.8f, 3.551f, "textures/solar/2k_moon.jpg"},
                 {"Ganymede", 2634.1f, 7.155f, "textures/solar/2k_moon.jpg"},
                 {"Callisto", 2410.3f, 16.69f, "textures/solar/2k_moon.jpg"},
             }
         },
-        {"Saturn", 58232.0f, 9.537f, 29.46f, "textures/solar/2k_saturn.jpg"},
-        {"Uranus", 25362.0f, 19.19f, 84.01f, "textures/solar/2k_uranus.jpg"},
-        {"Neptune", 24622.0f, 30.07f, 164.8f, "textures/solar/2k_neptune.jpg"},
+        {"Saturn", 58232.0f, 9.537f, 10755.70f, 0.44f, "textures/solar/2k_saturn.jpg"},
+        {"Uranus", 25362.0f, 19.19f, 30688.5, -0.7187f, "textures/solar/2k_uranus.jpg"},
+        {"Neptune", 24622.0f, 30.07f, 60195.0f, 0.673f, "textures/solar/2k_neptune.jpg"},
     };
 
     static const std::vector<glm::vec3> planetColors = {
@@ -80,13 +80,17 @@ namespace app {
 
             const float r = planet.radiusKm * RADIUS_SCALE;
             const float planetOrbit = planet.orbitAu * AU_SCALE;
-            const float planetSpeed = (glm::two_pi<float>() / planet.periodYears) * PERIOD_SCALE;
+            const float planetSpeed = (glm::two_pi<float>() / (planet.periodDays / DAYS_PER_YEAR)) * PERIOD_SCALE;
+            const float rotSpeed = (glm::two_pi<float>() / (planet.rotationDays / DAYS_PER_YEAR)) * PERIOD_SCALE;
 
             scene.addObject(
                 sphere, litPipeline, textures.back(),
                 Transform{.position = {planetOrbit, 0.0f, 0.0f}, .scale = {r, r, r}},
                 OrbitalBody{.radius = planetOrbit, .speed = planetSpeed},
-                planet.name
+                planet.name,
+                std::nullopt,
+                &planet,
+                rotSpeed
             );
 
             // Orbit circle

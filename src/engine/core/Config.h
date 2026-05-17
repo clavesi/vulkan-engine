@@ -4,8 +4,8 @@
 #include <string>
 
 struct EngineConfig {
-    uint32_t windowWidth = 800;
-    uint32_t windowHeight = 600;
+    uint32_t windowWidth = 1280;
+    uint32_t windowHeight = 720;
     std::string windowTitle = "Vulkan";
     std::string shaderPath = "shaders/shader.spv";
     std::string unlitShaderPath = "shaders/shader_unlit.spv";

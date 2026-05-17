@@ -15,6 +15,14 @@ void Scene::update(float deltaTime) {
             std::sin(angle) * radius,
             0.0f
         };
+
+        if (obj.rotationSpeedRads != 0.0f) {
+            obj.transform.rotation = glm::rotate(
+                obj.transform.rotation,
+                obj.rotationSpeedRads * deltaTime,
+                glm::vec3{0.0f, 0.0f, 1.0f}
+            );
+        }
     }
 
     // Pass 2: has parent — parent position already updated in pass 1
@@ -40,10 +48,15 @@ void Scene::addObject(
     Transform transform,
     std::optional<OrbitalBody> orbital,
     std::string name,
-    std::optional<uint32_t> parentIndex
+    std::optional<uint32_t> parentIndex,
+    const app::PlanetDef *bodyDef,
+    const float rotationSpeedRads
 ) {
     objects.push_back(
-        {&mesh, &pipeline, &texture, std::move(transform), std::move(orbital), parentIndex, std::move(name)}
+        {
+            &mesh, &pipeline, &texture, std::move(transform), std::move(orbital), parentIndex, std::move(name), bodyDef,
+            rotationSpeedRads
+        }
     );
 }
 

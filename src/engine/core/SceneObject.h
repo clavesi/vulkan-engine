@@ -4,6 +4,7 @@
 #include "OrbitalBody.h"
 #include "Mesh.h"
 #include "vk/Texture.h"
+#include "app/BodyDef.h"
 
 #include <optional>
 
@@ -17,4 +18,6 @@ struct SceneObject {
     std::optional<OrbitalBody> orbital; // absent = stationary
     std::optional<uint32_t> parentIndex;
     std::string name;
+    const app::PlanetDef *bodyDef = nullptr; // null for sun and moons
+    float rotationSpeedRads = 0.0f;
 };
