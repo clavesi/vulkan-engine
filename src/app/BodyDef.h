@@ -7,6 +7,7 @@ namespace app {
     struct MoonDef {
         std::string name;
         float radiusKm;
+        float orbitKm;
         float periodDays;
         std::string texturePath;
     };

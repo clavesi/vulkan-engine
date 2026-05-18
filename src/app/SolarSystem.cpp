@@ -10,21 +10,21 @@ namespace app {
         {"Venus", 6051.8f, 0.723f, 224.701f, -243.0226f, "textures/solar/2k_venus_atmosphere.jpg"},
         {
             "Earth", 6371.0f, 1.000f, 365.256f, 0.9973f, "textures/solar/2k_earth_daymap.jpg", {
-                {"Moon", 1737.4f, 27.32f, "textures/solar/2k_moon.jpg"},
+                {"Moon", 1737.4f, 384400.0f, 27.32f, "textures/solar/2k_moon.jpg"},
             }
         },
         {
             "Mars", 3389.5f, 1.524f, 686.980f, 1.026f, "textures/solar/2k_mars.jpg", {
-                {"Phobos", 11.267f, 0.319f, "textures/solar/2k_moon.jpg"},
-                {"Deimos", 6.2f, 1.263f, "textures/solar/2k_moon.jpg"},
+                {"Phobos", 11.267f, 9376.0f, 0.319f, "textures/solar/2k_moon.jpg"},
+                {"Deimos", 6.2f, 23463.0f, 1.263f, "textures/solar/2k_moon.jpg"},
             }
         },
         {
             "Jupiter", 69911.0f, 5.203f, 4332.59f, 0.4147f, "textures/solar/2k_jupiter.jpg", {
-                {"Io", 1821.6f, 1.769f, "textures/solar/2k_moon.jpg"},
-                {"Europa", 1560.8f, 3.551f, "textures/solar/2k_moon.jpg"},
-                {"Ganymede", 2634.1f, 7.155f, "textures/solar/2k_moon.jpg"},
-                {"Callisto", 2410.3f, 16.69f, "textures/solar/2k_moon.jpg"},
+                {"Io", 1821.6f, 421800.0f, 1.769f, "textures/solar/2k_moon.jpg"},
+                {"Europa", 1560.8f, 671100.0f, 3.551f, "textures/solar/2k_moon.jpg"},
+                {"Ganymede", 2634.1f, 1070400.0f, 7.155f, "textures/solar/2k_moon.jpg"},
+                {"Callisto", 2410.3f, 1882700.0f, 16.69f, "textures/solar/2k_moon.jpg"},
             }
         },
         {"Saturn", 58232.0f, 9.537f, 10755.70f, 0.44f, "textures/solar/2k_saturn.jpg"},
@@ -106,7 +106,9 @@ namespace app {
                 vk_util::loadTexture(device, moon.texturePath, textures.back());
 
                 const float mr = moon.radiusKm * RADIUS_SCALE;
-                const float moonOrbit = parentRadius * MOON_ORBIT_RADII;
+                // Real ratio: how many parent radii this moon orbits at, compressed for visibility
+                const float realRatio  = moon.orbitKm / planet.radiusKm;
+                const float moonOrbit  = std::log(realRatio + 1.0f) * parentRadius * 1.5f;
                 const float moonSpeed = (glm::two_pi<float>() / (moon.periodDays / DAYS_PER_YEAR)) * PERIOD_SCALE;
 
                 const glm::vec3 parentPos = scene.getObjects()[planetIdx].transform.position;
