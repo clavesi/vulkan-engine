@@ -20,4 +20,6 @@ struct SceneObject {
     std::string name;
     const app::PlanetDef *bodyDef = nullptr; // null for sun and moons
     float rotationSpeedRads = 0.0f;
+    glm::quat tiltRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);; // fixed axial tilt, set at creation
+    float spinAngle = 0.0f; // accumulated spin around own axis
 };

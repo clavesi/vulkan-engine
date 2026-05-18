@@ -18,7 +18,7 @@ namespace app {
         static constexpr float PERIOD_SCALE = 0.0001f; // higher value speeds up simulation time
         static constexpr float DAYS_PER_YEAR = 365.25f;
 
-        static constexpr int ASTEROID_BELT_COUNT = 1000;
+        static constexpr int ASTEROID_BELT_COUNT = 1500;
 
         static void init(
             Scene &scene, const Mesh &sphere, const Mesh &asteroidMesh,

@@ -9,30 +9,30 @@
 
 namespace app {
     const std::vector<PlanetDef> SolarSystem::planets = {
-        {"Mercury", 2439.7f, 0.387f, 87.9691f, 58.646f, "textures/solar/2k_mercury.jpg"},
-        {"Venus", 6051.8f, 0.723f, 224.701f, -243.0226f, "textures/solar/2k_venus_atmosphere.jpg"},
+        {"Mercury", 2439.7f, 0.387f, 87.9691f, 58.646f, 0.034f, "textures/solar/2k_mercury.jpg"},
+        {"Venus", 6051.8f, 0.723f, 224.701f, -243.0226f, 177.36f, "textures/solar/2k_venus_atmosphere.jpg"},
         {
-            "Earth", 6371.0f, 1.000f, 365.256f, 0.9973f, "textures/solar/2k_earth_daymap.jpg", {
+            "Earth", 6371.0f, 1.000f, 365.256f, 0.9973f, 23.4393f, "textures/solar/2k_earth_daymap.jpg", {
                 {"Moon", 1737.4f, 384400.0f, 27.32f, "textures/solar/2k_moon.jpg"},
             }
         },
         {
-            "Mars", 3389.5f, 1.524f, 686.980f, 1.026f, "textures/solar/2k_mars.jpg", {
+            "Mars", 3389.5f, 1.524f, 686.980f, 1.026f, 25.19f, "textures/solar/2k_mars.jpg", {
                 {"Phobos", 11.267f, 9376.0f, 0.319f, "textures/solar/mars-phobos.jpg"},
                 {"Deimos", 6.2f, 23463.0f, 1.263f, "textures/solar/mars-deimos.jpg"},
             }
         },
         {
-            "Jupiter", 69911.0f, 5.203f, 4332.59f, 0.4147f, "textures/solar/2k_jupiter.jpg", {
+            "Jupiter", 69911.0f, 5.203f, 4332.59f, 0.4147f, 3.13f, "textures/solar/2k_jupiter.jpg", {
                 {"Io", 1821.6f, 421800.0f, 1.769f, "textures/solar/jupiter-io.jpg"},
                 {"Europa", 1560.8f, 671100.0f, 3.551f, "textures/solar/jupiter-europa.jpg"},
                 {"Ganymede", 2634.1f, 1070400.0f, 7.155f, "textures/solar/jupiter-ganymede.jpg"},
                 {"Callisto", 2410.3f, 1882700.0f, 16.69f, "textures/solar/jupiter-callisto.jpg"},
             }
         },
-        {"Saturn", 58232.0f, 9.537f, 10755.70f, 0.44f, "textures/solar/2k_saturn.jpg"},
-        {"Uranus", 25362.0f, 19.19f, 30688.5, -0.7187f, "textures/solar/2k_uranus.jpg"},
-        {"Neptune", 24622.0f, 30.07f, 60195.0f, 0.673f, "textures/solar/2k_neptune.jpg"},
+        {"Saturn", 58232.0f, 9.537f, 10755.70f, 0.44f, 26.73f, "textures/solar/2k_saturn.jpg"},
+        {"Uranus", 25362.0f, 19.19f, 30688.5, -0.7187f, 82.23f, "textures/solar/2k_uranus.jpg"},
+        {"Neptune", 24622.0f, 30.07f, 60195.0f, 0.673f, 28.32f, "textures/solar/2k_neptune.jpg"},
     };
 
     static const std::vector<glm::vec3> planetColors = {
@@ -86,15 +86,25 @@ namespace app {
             const float planetOrbit = planet.orbitAu * AU_SCALE;
             const float planetSpeed = (glm::two_pi<float>() / (planet.periodDays / DAYS_PER_YEAR)) * PERIOD_SCALE;
             const float rotSpeed = (glm::two_pi<float>() / (planet.rotationDays / DAYS_PER_YEAR)) * PERIOD_SCALE;
+            const glm::quat tilt = glm::angleAxis(
+                glm::radians(planet.axialTiltDeg),
+                glm::vec3{1.0f, 0.0f, 0.0f}
+            );
 
             scene.addObject(
                 sphere, litPipeline, textures.back(),
-                Transform{.position = {planetOrbit, 0.0f, 0.0f}, .scale = {r, r, r}},
+                Transform{
+                    .position = {
+                        planetOrbit, 0.0f, 0.0f
+                    },
+                    .scale = {r, r, r}
+                },
                 OrbitalBody{.radius = planetOrbit, .speed = planetSpeed},
                 planet.name,
                 std::nullopt,
                 &planet,
-                rotSpeed
+                rotSpeed,
+                tilt
             );
 
             // Orbit circle
@@ -140,7 +150,7 @@ namespace app {
         textures.emplace_back();
         // Texture already loaded from glb — reuse same texture for all asteroids
         // Load once, store once, all asteroids point to it
-        if (!io::loadGltfBaseColorTexture(device, "models/asteroid-low-poly/asteroid_low_poly.glb", textures.back())) {
+        if (!io::loadGltfBaseColorTexture(device, "models/asteroid-low-poly/asteroid.glb", textures.back())) {
             vk_util::loadTexture(device, "textures/solar/2k_moon.jpg", textures.back());
         }
         const Texture &asteroidTex = textures.back();
@@ -149,7 +159,7 @@ namespace app {
         std::mt19937 rng(42);
         std::uniform_real_distribution<float> angleDist(0.0f, glm::two_pi<float>());
         std::normal_distribution<float> orbitDist(2.7f * AU_SCALE, 0.4f * AU_SCALE);
-        std::uniform_real_distribution<float> scaleDist(0.002f, 0.008f);
+        std::uniform_real_distribution<float> scaleDist(0.0003f, 0.001f);
         std::uniform_real_distribution<float> speedDist(0.6f, 1.2f); // relative to a 2.7 AU orbit
         std::uniform_real_distribution<float> zDist(-0.3f, 0.3f); // slight vertical spread
 

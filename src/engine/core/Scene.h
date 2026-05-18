@@ -19,7 +19,8 @@ public:
         std::string name = "",
         std::optional<uint32_t> parentIndex = std::nullopt,
         const app::PlanetDef *bodyDef = nullptr,
-        float rotationSpeedRads = 0.0f
+        float rotationSpeedRads = 0.0f,
+        glm::quat tiltRotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f)
     );
     const std::vector<SceneObject> &getObjects() const { return objects; }
 

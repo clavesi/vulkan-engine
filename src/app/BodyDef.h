@@ -18,6 +18,7 @@ namespace app {
         float orbitAu; // real orbital radius in AU — will be scaled
         float periodDays; // real orbital period in Earth days
         float rotationDays; // length of one day in Earth days
+        float axialTiltDeg;
         std::string texturePath;
         std::vector<MoonDef> moons;
     };

@@ -17,11 +17,9 @@ void Scene::update(float deltaTime) {
         };
 
         if (obj.rotationSpeedRads != 0.0f) {
-            obj.transform.rotation = glm::rotate(
-                obj.transform.rotation,
-                obj.rotationSpeedRads * deltaTime,
-                glm::vec3{0.0f, 0.0f, 1.0f}
-            );
+            obj.spinAngle += obj.rotationSpeedRads * deltaTime;
+            const glm::quat spin = glm::angleAxis(obj.spinAngle, glm::vec3{0.0f, 0.0f, 1.0f});
+            obj.transform.rotation = obj.tiltRotation * spin;
         }
     }
 
@@ -48,18 +46,19 @@ void Scene::addObject(
     Transform transform,
     std::optional<OrbitalBody> orbital,
     std::string name,
-    std::optional<uint32_t> parentIndex,
+    const std::optional<uint32_t> parentIndex,
     const app::PlanetDef *bodyDef,
-    const float rotationSpeedRads
+    const float rotationSpeedRads,
+    const glm::quat tiltRotation
 ) {
     objects.push_back(
         {
             &mesh, &pipeline, &texture, std::move(transform), std::move(orbital), parentIndex, std::move(name), bodyDef,
-            rotationSpeedRads
+            rotationSpeedRads, tiltRotation
         }
     );
 }
 
-void Scene::addOrbitCircle(const Mesh &mesh, glm::vec3 color) {
+void Scene::addOrbitCircle(const Mesh &mesh, const glm::vec3 color) {
     orbitCircles.push_back({&mesh, color});
 }
