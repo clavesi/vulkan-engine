@@ -15,7 +15,8 @@ struct EngineConfig {
     std::string skyboxShaderPath = "shaders/shader_skybox.spv";
     std::string texturePath = "textures/viking_room.png";
     std::string skyboxTexturePath = "textures/solar/hiptyc_2020_16k_gal.jpg";
-    std::string modelPath = "models/viking_room.obj";
+    // std::string modelPath = "models/viking_room.obj";
+    std::string asteroidModelPath  = "models/asteroid-low-poly/asteroid.glb";
 
     // Camera initial state
     float cameraDistance = 50.0f;

@@ -3,13 +3,13 @@
 #include "Vertex.h"
 #include "vk/TextureLoader.h"
 #include "core/MeshGenerator.h"
+#include "io/GltfLoader.h"
 
 #include <imgui.h>
 
 #include <chrono>
 #include <fstream>
 #include <iostream>
-
 
 Engine::Engine(EngineConfig cfg)
     : config(std::move(cfg)),
@@ -257,15 +257,19 @@ void Engine::mainLoop() {
 }
 
 void Engine::initScene() {
-    // Load mesh
-    auto [vertices, indices] = MeshGenerator::sphere(1.0f, 64, 64);
-    meshes.emplace_back(device, vertices, indices);
-    const Mesh &sphere = meshes.back();
-
     // Skybox
     auto [skyVerts, skyIndices] = MeshGenerator::cube();
     skyboxMesh.emplace(device, skyVerts, skyIndices);
     vk_util::loadTexture(device, config.skyboxTexturePath, skyboxTexture);
 
-    solarSystem.init(scene, sphere, pipeline, unlitPipeline, textures, device, orbitMeshes);
+    // Load mesh
+    auto [sphereVertices, sphereIndices] = MeshGenerator::sphere(1.0f, 64, 64);
+    meshes.emplace_back(device, sphereVertices, sphereIndices);
+    const Mesh &sphere = meshes.back();
+
+    auto [asteroidVertices, asteroidIndices] = io::loadGltfMesh(config.asteroidModelPath);
+    meshes.emplace_back(device, asteroidVertices, asteroidIndices);
+    const Mesh &asteroidMesh = meshes.back();
+
+    solarSystem.init(scene, sphere,asteroidMesh, pipeline, unlitPipeline, textures, device, orbitMeshes);
 }

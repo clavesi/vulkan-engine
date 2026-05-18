@@ -18,8 +18,10 @@ namespace app {
         static constexpr float PERIOD_SCALE = 0.0001f; // higher value speeds up simulation time
         static constexpr float DAYS_PER_YEAR = 365.25f;
 
+        static constexpr int ASTEROID_BELT_COUNT = 1000;
+
         static void init(
-            Scene &scene, const Mesh &sphere,
+            Scene &scene, const Mesh &sphere, const Mesh &asteroidMesh,
             const Pipeline &litPipeline, const Pipeline &unlitPipeline,
             std::list<Texture> &textures, const Device &device,
             std::list<Mesh> &orbitMeshes
@@ -33,5 +35,8 @@ namespace app {
 
         static void addPlanets(Scene &scene, const Mesh &sphere, const Pipeline &litPipeline,
                                std::list<Texture> &textures, const Device &device, std::list<Mesh> &orbitMeshes);
+
+        static void addAsteroidBelt(Scene &scene, const Mesh &asteroidMesh, const Pipeline &litPipeline,
+                                    std::list<Texture> &textures, const Device &device);
     };
 } // namespace app

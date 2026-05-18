@@ -16,7 +16,6 @@
 
 #include <vulkan/vulkan_raii.hpp>
 
-#include <vector>
 #include <list>
 
 class Engine {
@@ -55,7 +54,7 @@ private:
     Pipeline outlinePipeline; // outline for object mouse over
     Pipeline orbitPipeline; // draw planets' orbit
     Pipeline skyboxPipeline; // skybox
-    std::vector<Mesh> meshes; // owns mesh data
+    std::list<Mesh> meshes; // owns mesh data
     std::list<Texture> textures; // owns texture data
     Scene scene;
     Renderer renderer; // holds raw pointers into meshes

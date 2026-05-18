@@ -3,6 +3,9 @@
 #include "core/OrbitalBody.h"
 #include "core/Transform.h"
 #include "vk/TextureLoader.h"
+#include "io/GltfLoader.h"
+
+#include <random>
 
 namespace app {
     const std::vector<PlanetDef> SolarSystem::planets = {
@@ -44,13 +47,14 @@ namespace app {
     };
 
     void SolarSystem::init(
-        Scene &scene, const Mesh &sphere,
+        Scene &scene, const Mesh &sphere, const Mesh &asteroidMesh,
         const Pipeline &litPipeline, const Pipeline &unlitPipeline,
         std::list<Texture> &textures, const Device &device,
         std::list<Mesh> &orbitMeshes
     ) {
         addSun(scene, sphere, unlitPipeline, textures, device);
         addPlanets(scene, sphere, litPipeline, textures, device, orbitMeshes);
+        addAsteroidBelt(scene, asteroidMesh, litPipeline, textures, device);
     }
 
     void SolarSystem::addSun(
@@ -107,8 +111,8 @@ namespace app {
 
                 const float mr = moon.radiusKm * RADIUS_SCALE;
                 // Real ratio: how many parent radii this moon orbits at, compressed for visibility
-                const float realRatio  = moon.orbitKm / planet.radiusKm;
-                const float moonOrbit  = std::log(realRatio + 1.0f) * parentRadius * 1.5f;
+                const float realRatio = moon.orbitKm / planet.radiusKm;
+                const float moonOrbit = std::log(realRatio + 1.0f) * parentRadius * 1.5f;
                 const float moonSpeed = (glm::two_pi<float>() / (moon.periodDays / DAYS_PER_YEAR)) * PERIOD_SCALE;
 
                 const glm::vec3 parentPos = scene.getObjects()[planetIdx].transform.position;
@@ -126,6 +130,59 @@ namespace app {
 
                 ++idx; // moon also occupies a scene index
             }
+        }
+    }
+
+    void SolarSystem::addAsteroidBelt(
+        Scene &scene, const Mesh &asteroidMesh, const Pipeline &litPipeline,
+        std::list<Texture> &textures, const Device &device
+    ) {
+        textures.emplace_back();
+        // Texture already loaded from glb — reuse same texture for all asteroids
+        // Load once, store once, all asteroids point to it
+        if (!io::loadGltfBaseColorTexture(device, "models/asteroid-low-poly/asteroid_low_poly.glb", textures.back())) {
+            vk_util::loadTexture(device, "textures/solar/2k_moon.jpg", textures.back());
+        }
+        const Texture &asteroidTex = textures.back();
+
+        // Seed for reproducible belt
+        std::mt19937 rng(42);
+        std::uniform_real_distribution<float> angleDist(0.0f, glm::two_pi<float>());
+        std::normal_distribution<float> orbitDist(2.7f * AU_SCALE, 0.4f * AU_SCALE);
+        std::uniform_real_distribution<float> scaleDist(0.002f, 0.008f);
+        std::uniform_real_distribution<float> speedDist(0.6f, 1.2f); // relative to a 2.7 AU orbit
+        std::uniform_real_distribution<float> zDist(-0.3f, 0.3f); // slight vertical spread
+
+        // Base orbital speed at 2.7 AU (Kepler: speed ∝ 1/sqrt(r))
+        constexpr float baseOrbit = 2.7f * AU_SCALE;
+        constexpr float baseSpeed = (glm::two_pi<float>() / (1643.5f / DAYS_PER_YEAR)) * PERIOD_SCALE;
+
+        for (int i = 0; i < ASTEROID_BELT_COUNT; ++i) {
+            const float orbit = std::clamp(orbitDist(rng), 1.8f * AU_SCALE, 3.2f * AU_SCALE);
+            const float angle = angleDist(rng);
+            const float s = scaleDist(rng);
+            // Kepler scaling: objects further out orbit slower
+            const float speed = baseSpeed * std::sqrt(baseOrbit / orbit) * speedDist(rng);
+            const float zOffset = zDist(rng);
+
+            const glm::vec3 pos = {
+                std::cos(angle) * orbit,
+                std::sin(angle) * orbit,
+                zOffset
+            };
+
+            // Random initial rotation
+            std::uniform_real_distribution<float> rotDist(0.0f, glm::two_pi<float>());
+            const glm::quat rot = glm::angleAxis(rotDist(rng), glm::normalize(glm::vec3{
+                                                     rotDist(rng), rotDist(rng), rotDist(rng)
+                                                 }));
+
+            scene.addObject(
+                asteroidMesh, litPipeline, asteroidTex,
+                Transform{.position = pos, .rotation = rot, .scale = {s, s, s}},
+                OrbitalBody{.radius = orbit, .speed = speed, .angle = angle}
+                // no name — won't show in UI
+            );
         }
     }
 } // namespace app
