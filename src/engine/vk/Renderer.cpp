@@ -20,6 +20,7 @@ Renderer::Renderer(
     const Pipeline &pickingPipeline,
     const Pipeline &outlinePipeline,
     const Pipeline &orbitPipeline,
+    const Pipeline &skyboxPipeline,
     const EngineConfig &config,
     const Scene &scene,
     const Input &input
@@ -30,6 +31,7 @@ Renderer::Renderer(
       pickingPipeline(pickingPipeline),
       outlinePipeline(outlinePipeline),
       orbitPipeline(orbitPipeline),
+      skyboxPipeline(skyboxPipeline),
       config(config),
       scene(scene),
       input(input) {
@@ -301,6 +303,20 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
     );
     commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), extent));
 
+    // ===== Skybox — draw first, behind everything =====
+    if (skyboxMesh && skyboxTexture) {
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, skyboxPipeline.handle());
+        commandBuffer.bindDescriptorSets(
+            vk::PipelineBindPoint::eGraphics,
+            skyboxPipeline.layout(), 0,
+            *skyboxDescriptorSets[frameIndex], nullptr
+        );
+        constexpr vk::DeviceSize offset = 0;
+        commandBuffer.bindVertexBuffers(0, *skyboxMesh->vertexBuffer().handle(), offset);
+        commandBuffer.bindIndexBuffer(*skyboxMesh->indexBuffer().handle(), 0, vk::IndexType::eUint32);
+        commandBuffer.drawIndexed(skyboxMesh->indexCount(), 1, 0, 0, 0);
+    }
+
     // ===== Objects =====
     for (const auto &obj: scene.getObjects()) {
         const uint32_t objIdx = static_cast<uint32_t>(&obj - scene.getObjects().data());
@@ -436,12 +452,13 @@ void Renderer::createDescriptorPool() {
     const uint32_t objectCount = static_cast<uint32_t>(scene.getObjects().size());
     const uint32_t objectSetCount = objectCount * MAX_FRAMES_IN_FLIGHT;
     constexpr uint32_t orbitSetCount = MAX_FRAMES_IN_FLIGHT;
-    const uint32_t totalSetCount = objectSetCount + orbitSetCount;
+    constexpr uint32_t skyboxSetCount = MAX_FRAMES_IN_FLIGHT;
+    const uint32_t totalSetCount = objectSetCount + orbitSetCount + skyboxSetCount;
 
     std::array<vk::DescriptorPoolSize, 2> poolSizes{
         {
             {.type = vk::DescriptorType::eUniformBuffer, .descriptorCount = totalSetCount},
-            {.type = vk::DescriptorType::eCombinedImageSampler, .descriptorCount = objectSetCount},
+            {.type = vk::DescriptorType::eCombinedImageSampler, .descriptorCount = objectSetCount + skyboxSetCount},
         }
     };
 
@@ -529,10 +546,59 @@ void Renderer::createOrbitDescriptorSets() {
     }
 }
 
+void Renderer::createSkyboxDescriptorSet() {
+    std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT,
+                                                 *skyboxPipeline.descriptorLayout());
+    const vk::DescriptorSetAllocateInfo allocInfo{
+        .descriptorPool = descriptorPool,
+        .descriptorSetCount = static_cast<uint32_t>(layouts.size()),
+        .pSetLayouts = layouts.data()
+    };
+    skyboxDescriptorSets = device.logical().allocateDescriptorSets(allocInfo);
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+        vk::DescriptorBufferInfo bufferInfo{
+            .buffer = uniformBuffers[i].handle(),
+            .offset = 0,
+            .range = sizeof(UniformBufferObject)
+        };
+        vk::DescriptorImageInfo imageInfo{
+            .sampler = skyboxTexture->sampler->handle(),
+            .imageView = skyboxTexture->view,
+            .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
+        };
+        std::array<vk::WriteDescriptorSet, 2> writes{
+            {
+                {
+                    .dstSet = skyboxDescriptorSets[i],
+                    .dstBinding = 0,
+                    .descriptorCount = 1,
+                    .descriptorType = vk::DescriptorType::eUniformBuffer,
+                    .pBufferInfo = &bufferInfo
+                },
+                {
+                    .dstSet = skyboxDescriptorSets[i],
+                    .dstBinding = 1,
+                    .descriptorCount = 1,
+                    .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+                    .pImageInfo = &imageInfo
+                }
+            }
+        };
+        device.logical().updateDescriptorSets(writes, {});
+    }
+}
+
 void Renderer::onSceneReady() {
     createDescriptorPool();
     createDescriptorSets();
     createOrbitDescriptorSets();
+    createSkyboxDescriptorSet();
+}
+
+void Renderer::setSkybox(const Mesh &mesh, const Texture &texture) {
+    skyboxMesh = &mesh;
+    skyboxTexture = &texture;
 }
 
 void Renderer::createPickingResources() {

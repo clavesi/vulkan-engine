@@ -54,12 +54,16 @@ private:
     Pipeline pickingPipeline; // picking for detecting object mouse over
     Pipeline outlinePipeline; // outline for object mouse over
     Pipeline orbitPipeline; // draw planets' orbit
+    Pipeline skyboxPipeline; // skybox
     std::vector<Mesh> meshes; // owns mesh data
-    std::list<Mesh> orbitMeshes;
     std::list<Texture> textures; // owns texture data
     Scene scene;
     Renderer renderer; // holds raw pointers into meshes
     ImGuiRenderer imguiRenderer;
+
+    std::list<Mesh> orbitMeshes;
+    std::optional<Mesh> skyboxMesh;
+    Texture skyboxTexture;
 
     bool paused = false;
 

@@ -85,6 +85,42 @@ namespace MeshGenerator {
         }
 
         // Empty indices — drawn as line strip directly
-        return {std::move(vertices), {}};
+        return {vertices, {}};
+    }
+
+    std::pair<std::vector<Vertex>, std::vector<uint32_t> > cube() {
+        // 24 vertices (4 per face) so each face has correct winding
+        const std::vector<glm::vec3> positions = {
+            // +X
+            {1, -1, -1}, {1, 1, -1}, {1, 1, 1}, {1, -1, 1},
+            // -X
+            {-1, -1, 1}, {-1, 1, 1}, {-1, 1, -1}, {-1, -1, -1},
+            // +Y
+            {-1, 1, -1}, {-1, 1, 1}, {1, 1, 1}, {1, 1, -1},
+            // -Y
+            {-1, -1, 1}, {-1, -1, -1}, {1, -1, -1}, {1, -1, 1},
+            // +Z
+            {-1, -1, 1}, {1, -1, 1}, {1, 1, 1}, {-1, 1, 1},
+            // -Z
+            {1, -1, -1}, {-1, -1, -1}, {-1, 1, -1}, {1, 1, -1},
+        };
+
+        std::vector<Vertex> vertices;
+        for (const auto &p: positions) {
+            Vertex v{};
+            v.pos = p;
+            vertices.push_back(v);
+        }
+
+        std::vector<uint32_t> indices;
+        for (uint32_t face = 0; face < 6; ++face) {
+            const uint32_t base = face * 4;
+            indices.insert(indices.end(), {
+                               base + 0, base + 1, base + 2,
+                               base + 2, base + 3, base + 0
+                           });
+        }
+
+        return {std::move(vertices), std::move(indices)};
     }
 }

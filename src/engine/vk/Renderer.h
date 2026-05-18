@@ -28,6 +28,7 @@ public:
         const Pipeline &pickingPipeline,
         const Pipeline &outlinePipeline,
         const Pipeline &orbitPipeline,
+        const Pipeline &skyboxPipeline,
         const EngineConfig &config,
         const Scene &scene,
         const Input &input
@@ -48,6 +49,8 @@ public:
     );
 
     void onSceneReady();
+
+    void setSkybox(const Mesh &mesh, const Texture &texture);
 
     uint32_t getHoveredObjectId() const { return hoveredObjectId; }
 
@@ -76,6 +79,7 @@ private:
     void createDescriptorPool();
     void createDescriptorSets();
     void createOrbitDescriptorSets();
+    void createSkyboxDescriptorSet();
 
     void createPickingResources();
     void recordPickingPass() const;
@@ -87,6 +91,7 @@ private:
     const Pipeline &pickingPipeline;
     const Pipeline &outlinePipeline;
     const Pipeline &orbitPipeline;
+    const Pipeline &skyboxPipeline;
     const EngineConfig &config;
     const Scene &scene;
     const Input &input;
@@ -114,6 +119,7 @@ private:
     std::vector<std::vector<vk::raii::DescriptorSet> > descriptorSets;
     // One descriptor set per frame for orbit circles — UBO only, no texture
     std::vector<vk::raii::DescriptorSet> orbitDescriptorSets;
+    std::vector<vk::raii::DescriptorSet> skyboxDescriptorSets;
 
     // Picking - renders object IDs, reads back pixel under cursor
     std::optional<Image> pickingImage;
@@ -121,4 +127,7 @@ private:
     std::optional<Buffer> pickingReadbackBuffer;
     mutable void *pickingReadbackMapped = nullptr;
     mutable uint32_t hoveredObjectId = UINT32_MAX; // max = nothing hovered
+
+    const Mesh *skyboxMesh = nullptr;
+    const Texture *skyboxTexture = nullptr;
 };

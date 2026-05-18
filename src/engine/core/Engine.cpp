@@ -1,6 +1,7 @@
 #include "Engine.h"
 #include "Vertex.h"
 #include "core/MeshGenerator.h"
+#include "vk/TextureLoader.h"
 
 #include <imgui.h>
 
@@ -184,6 +185,43 @@ namespace {
             .blendEnable = true
         };
     }
+
+    PipelineSpec makeSkyboxPipelineSpec(
+        const std::string &shaderPath,
+        const vk::Format colorFormat,
+        const vk::Format depthFormat,
+        const vk::SampleCountFlagBits samples
+    ) {
+        const std::vector<vk::VertexInputAttributeDescription> skyboxAttrs = {
+            Vertex::getAttributeDescriptions()[0], // pos only
+        };
+
+        vk::DescriptorSetLayoutBinding uboBinding{
+            0, vk::DescriptorType::eUniformBuffer, 1,
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+            nullptr
+        };
+        vk::DescriptorSetLayoutBinding samplerBinding{
+            .binding = 1,
+            .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+            .descriptorCount = 1,
+            .stageFlags = vk::ShaderStageFlagBits::eFragment
+        };
+
+        return PipelineSpec{
+            .shaderPath = shaderPath,
+            .colorFormat = colorFormat,
+            .bindingDescription = Vertex::getBindingDescription(),
+            .attributeDescriptions = skyboxAttrs,
+            .descriptorBindings = {uboBinding, samplerBinding},
+            .depthFormat = depthFormat,
+            .samples = samples,
+            .pushConstantSize = 0,
+            .cullMode = vk::CullModeFlagBits::eFront,
+            .depthTestEnable = false,
+            .depthWriteEnable = false,
+        };
+    }
 } // namespace
 
 Engine::Engine(EngineConfig cfg)
@@ -218,11 +256,18 @@ Engine::Engine(EngineConfig cfg)
           makeOrbitPipelineSpec(config.orbitShaderPath, swapChain.format(), swapChain.depthFormat(),
                                 swapChain.samples())
       ),
-      renderer(device, swapChain, pipeline, pickingPipeline, outlinePipeline, orbitPipeline, config, scene, input),
+      skyboxPipeline(
+          device,
+          makeSkyboxPipelineSpec(config.skyboxShaderPath, swapChain.format(), swapChain.depthFormat(),
+                                 swapChain.samples())
+      ),
+      renderer(device, swapChain, pipeline, pickingPipeline, outlinePipeline, orbitPipeline, skyboxPipeline, config,
+               scene, input),
       imguiRenderer(device, swapChain, instance.get(), window.glfwHandle()) {
     input.init(window.glfwHandle());
     imguiRenderer.initGlfw(window.glfwHandle());
     initScene();
+    renderer.setSkybox(*skyboxMesh, skyboxTexture);
     renderer.onSceneReady();
 }
 
@@ -429,6 +474,11 @@ void Engine::initScene() {
     auto [vertices, indices] = MeshGenerator::sphere(1.0f, 64, 64);
     meshes.emplace_back(device, vertices, indices);
     const Mesh &sphere = meshes.back();
+
+    // Skybox
+    auto [skyVerts, skyIndices] = MeshGenerator::cube();
+    skyboxMesh.emplace(device, skyVerts, skyIndices);
+    vk_util::loadTexture(device, config.skyboxTexturePath, skyboxTexture);
 
     solarSystem.init(scene, sphere, pipeline, unlitPipeline, textures, device, orbitMeshes);
 }
