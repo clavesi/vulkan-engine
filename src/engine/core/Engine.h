@@ -66,5 +66,6 @@ private:
 
     bool paused = false;
 
+    float simSpeed = 1.0f;
     app::SolarSystem solarSystem;
 };

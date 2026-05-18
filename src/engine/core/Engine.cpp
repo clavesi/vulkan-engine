@@ -143,6 +143,13 @@ void Engine::mainLoop() {
         if (ImGui::Button(paused ? "  Resume" : "  Pause", ImVec2(100, 34))) {
             paused = !paused;
         }
+        // Log-space speed slider
+        float logSpeed = std::log10(simSpeed);
+        ImGui::Text("Speed: %.2fx", simSpeed);
+        ImGui::SetNextItemWidth(100.0f);
+        if (ImGui::SliderFloat("##speed", &logSpeed, -2.0f, 1.0f, "")) {
+            simSpeed = std::pow(10.0f, logSpeed);
+        }
         if (camera.isFreeCam()) {
             ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "  Free Cam");
             ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "  F to exit");
@@ -234,7 +241,7 @@ void Engine::mainLoop() {
             }
         }
 
-        scene.update(paused ? 0.0f : deltaTime);
+        scene.update(paused ? 0.0f : deltaTime * simSpeed);
 
         const auto [width, height] = window.getFramebufferSize();
         const float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
@@ -271,5 +278,5 @@ void Engine::initScene() {
     meshes.emplace_back(device, asteroidVertices, asteroidIndices);
     const Mesh &asteroidMesh = meshes.back();
 
-    solarSystem.init(scene, sphere,asteroidMesh, pipeline, unlitPipeline, textures, device, orbitMeshes);
+    solarSystem.init(scene, sphere, asteroidMesh, pipeline, unlitPipeline, textures, device, orbitMeshes);
 }
