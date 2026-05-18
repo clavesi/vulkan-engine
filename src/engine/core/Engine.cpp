@@ -84,9 +84,6 @@ void Engine::mainLoop() {
         const bool resized = window.wasResized();
         if (resized) window.resetResizedFlag();
 
-        camera.onScroll(input.getScrollDelta());
-        camera.update(deltaTime);
-
         const bool imguiWantsMouse = ImGui::GetIO().WantCaptureMouse;
         if (!imguiWantsMouse) {
             if (input.isMouseButtonDown(GLFW_MOUSE_BUTTON_RIGHT)) {
@@ -233,6 +230,8 @@ void Engine::mainLoop() {
             }
         }
 
+        scene.update(paused ? 0.0f : deltaTime * simSpeed);
+
         // Update follow target position each frame
         if (camera.isFollowing()) {
             const uint32_t id = camera.getFollowObjectId();
@@ -241,11 +240,11 @@ void Engine::mainLoop() {
             }
         }
 
-        scene.update(paused ? 0.0f : deltaTime * simSpeed);
+        camera.onScroll(input.getScrollDelta());
+        camera.update(deltaTime);
 
         const auto [width, height] = window.getFramebufferSize();
         const float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
-
         const glm::vec2 contentScale = window.getContentScale();
         renderer.drawFrame(
             camera.getViewMatrix(),
