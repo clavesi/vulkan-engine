@@ -15,16 +15,16 @@ namespace app {
         },
         {
             "Mars", 3389.5f, 1.524f, 686.980f, 1.026f, "textures/solar/2k_mars.jpg", {
-                {"Phobos", 11.267f, 9376.0f, 0.319f, "textures/solar/2k_moon.jpg"},
-                {"Deimos", 6.2f, 23463.0f, 1.263f, "textures/solar/2k_moon.jpg"},
+                {"Phobos", 11.267f, 9376.0f, 0.319f, "textures/solar/mars-phobos.jpg"},
+                {"Deimos", 6.2f, 23463.0f, 1.263f, "textures/solar/mars-deimos.jpg"},
             }
         },
         {
             "Jupiter", 69911.0f, 5.203f, 4332.59f, 0.4147f, "textures/solar/2k_jupiter.jpg", {
-                {"Io", 1821.6f, 421800.0f, 1.769f, "textures/solar/2k_moon.jpg"},
-                {"Europa", 1560.8f, 671100.0f, 3.551f, "textures/solar/2k_moon.jpg"},
-                {"Ganymede", 2634.1f, 1070400.0f, 7.155f, "textures/solar/2k_moon.jpg"},
-                {"Callisto", 2410.3f, 1882700.0f, 16.69f, "textures/solar/2k_moon.jpg"},
+                {"Io", 1821.6f, 421800.0f, 1.769f, "textures/solar/jupiter-io.jpg"},
+                {"Europa", 1560.8f, 671100.0f, 3.551f, "textures/solar/jupiter-europa.jpg"},
+                {"Ganymede", 2634.1f, 1070400.0f, 7.155f, "textures/solar/jupiter-ganymede.jpg"},
+                {"Callisto", 2410.3f, 1882700.0f, 16.69f, "textures/solar/jupiter-callisto.jpg"},
             }
         },
         {"Saturn", 58232.0f, 9.537f, 10755.70f, 0.44f, "textures/solar/2k_saturn.jpg"},
