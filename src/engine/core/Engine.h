@@ -55,6 +55,7 @@ private:
     Pipeline orbitPipeline; // draw planets' orbit
     Pipeline skyboxPipeline; // skybox
     Pipeline earthPipeline; // skybox
+    Pipeline ringsPipeline; // skybox
     std::list<Mesh> meshes; // owns mesh data
     std::list<Texture> textures; // owns texture data
     Scene scene;
@@ -64,6 +65,8 @@ private:
     std::list<Mesh> orbitMeshes;
     std::optional<Mesh> skyboxMesh;
     Texture skyboxTexture;
+
+    std::list<Mesh> ringMeshes;
 
     bool paused = false;
 

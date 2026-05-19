@@ -20,11 +20,15 @@ namespace app {
 
         static constexpr int ASTEROID_BELT_COUNT = 1500;
 
+        static constexpr float SATURN_RING_INNER = 1.3f; // multiplier of Saturn's radius
+        static constexpr float SATURN_RING_OUTER = 2.3f; // multiplier of Saturn's radius
+
         static void init(
             Scene &scene, const Mesh &sphere, const Mesh &asteroidMesh,
             const Pipeline &litPipeline, const Pipeline &unlitPipeline,
-            const Pipeline &earthPipeline, std::list<Texture> &textures,
-            const Device &device, std::list<Mesh> &orbitMeshes
+            const Pipeline &earthPipeline, const Pipeline &ringsPipeline,
+            std::list<Texture> &textures, const Device &device,
+            std::list<Mesh> &orbitMeshes, std::list<Mesh> &ringMeshes
         );
 
     private:
@@ -34,8 +38,9 @@ namespace app {
                            std::list<Texture> &textures, const Device &device);
 
         static void addPlanets(Scene &scene, const Mesh &sphere, const Pipeline &litPipeline,
-                               const Pipeline &earthPipeline,
-                               std::list<Texture> &textures, const Device &device, std::list<Mesh> &orbitMeshes);
+                               const Pipeline &earthPipeline, const Pipeline &ringsPipeline,
+                               std::list<Texture> &textures, const Device &device,
+                               std::list<Mesh> &orbitMeshes, std::list<Mesh> &ringMeshes);
 
         static void addAsteroidBelt(Scene &scene, const Mesh &asteroidMesh, const Pipeline &litPipeline,
                                     std::list<Texture> &textures, const Device &device);

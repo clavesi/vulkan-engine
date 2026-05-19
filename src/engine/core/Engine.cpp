@@ -53,6 +53,11 @@ Engine::Engine(EngineConfig cfg)
           PipelineSpecs::makeEarth(config.earthShaderPath, swapChain.format(), swapChain.depthFormat(),
                                    swapChain.samples())
       ),
+      ringsPipeline(
+          device,
+          PipelineSpecs::makeRings(config.ringsShaderPath, swapChain.format(), swapChain.depthFormat(),
+                                   swapChain.samples())
+      ),
       renderer(
           device, swapChain, pipeline, pickingPipeline, outlinePipeline, orbitPipeline, skyboxPipeline,
           earthPipeline, config, scene, input
@@ -192,6 +197,7 @@ void Engine::mainLoop() {
             for (size_t j = 0; j < objects.size(); ++j) {
                 const auto &moon = objects[j];
                 if (!moon.parentIndex || *moon.parentIndex != i) continue;
+                if (moon.name.empty()) continue;
 
                 ImGui::Indent(12.0f);
                 const bool moonFollowing = camera.isFollowing() && camera.getFollowObjectId() == j;
@@ -286,7 +292,9 @@ void Engine::initScene() {
 
     solarSystem.init(
         scene, sphere, asteroidMesh,
-        pipeline, unlitPipeline, earthPipeline,
-        textures, device, orbitMeshes
+        pipeline, unlitPipeline,
+        earthPipeline, ringsPipeline,
+        textures, device,
+        orbitMeshes, ringMeshes
     );
 }

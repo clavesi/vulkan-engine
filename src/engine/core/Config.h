@@ -14,10 +14,11 @@ struct EngineConfig {
     std::string orbitShaderPath = "shaders/shader_orbit.spv";
     std::string skyboxShaderPath = "shaders/shader_skybox.spv";
     std::string earthShaderPath = "shaders/shader_earth.spv";
+    std::string ringsShaderPath = "shaders/shader_unlit.spv"; // reuse unlit shader for now
     std::string texturePath = "textures/viking_room.png";
     std::string skyboxTexturePath = "textures/solar/hiptyc_2020_16k_gal.jpg";
     // std::string modelPath = "models/viking_room.obj";
-    std::string asteroidModelPath  = "models/asteroid-low-poly/asteroid.glb";
+    std::string asteroidModelPath = "models/asteroid-low-poly/asteroid.glb";
 
     // Camera initial state
     float cameraDistance = 50.0f;

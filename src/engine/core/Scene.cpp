@@ -23,19 +23,24 @@ void Scene::update(float deltaTime) {
         }
     }
 
-    // Pass 2: has parent — parent position already updated in pass 1
+    // Pass 2: has parent
     for (auto &obj: objects) {
-        if (!obj.parentIndex || !obj.orbital) continue;
+        if (!obj.parentIndex) continue;
 
-        auto &[radius, speed, angle] = *obj.orbital;
-        angle += speed * deltaTime;
-
-        obj.transform.position = objects[*obj.parentIndex].transform.position
-                                 + glm::vec3{
-                                     std::cos(angle) * radius,
-                                     std::sin(angle) * radius,
-                                     0.0f
-                                 };
+        if (obj.orbital) {
+            // Moon-style: orbit around parent
+            auto &[radius, speed, angle] = *obj.orbital;
+            angle += speed * deltaTime;
+            obj.transform.position = objects[*obj.parentIndex].transform.position + glm::vec3{
+                                         std::cos(angle) * radius,
+                                         std::sin(angle) * radius,
+                                         0.0f
+                                     };
+        } else {
+            // Ring-style: just follow parent position with no orbit
+            obj.transform.position = objects[*obj.parentIndex].transform.position;
+            obj.transform.rotation = objects[*obj.parentIndex].transform.rotation;
+        }
     }
 }
 

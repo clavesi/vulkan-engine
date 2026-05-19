@@ -88,6 +88,48 @@ namespace MeshGenerator {
         return {vertices, {}};
     }
 
+    std::pair<std::vector<Vertex>, std::vector<uint32_t> > disc(
+        float innerRadius, float outerRadius, uint32_t segments
+    ) {
+        std::vector<Vertex> vertices;
+        std::vector<uint32_t> indices;
+
+        for (uint32_t i = 0; i <= segments; ++i) {
+            const float angle = (static_cast<float>(i) / static_cast<float>(segments)) * glm::two_pi<float>();
+            const float cosA = std::cos(angle);
+            const float sinA = std::sin(angle);
+
+            // Inner vertex — UV.x = 0
+            Vertex inner{};
+            inner.pos = {cosA * innerRadius, sinA * innerRadius, 0.0f};
+            inner.normal = {0.0f, 0.0f, 1.0f};
+            inner.texCoord = {0.0f, static_cast<float>(i) / static_cast<float>(segments)};
+            inner.color = {1.0f, 1.0f, 1.0f};
+            vertices.push_back(inner);
+
+            // Outer vertex — UV.x = 1
+            Vertex outer{};
+            outer.pos = {cosA * outerRadius, sinA * outerRadius, 0.0f};
+            outer.normal = {0.0f, 0.0f, 1.0f};
+            outer.texCoord = {1.0f, static_cast<float>(i) / static_cast<float>(segments)};
+            outer.color = {1.0f, 1.0f, 1.0f};
+            vertices.push_back(outer);
+        }
+
+        // Two triangles per segment
+        for (uint32_t i = 0; i < segments; ++i) {
+            const uint32_t base = i * 2;
+            indices.push_back(base + 0);
+            indices.push_back(base + 2);
+            indices.push_back(base + 1);
+            indices.push_back(base + 1);
+            indices.push_back(base + 2);
+            indices.push_back(base + 3);
+        }
+
+        return {std::move(vertices), std::move(indices)};
+    }
+
     std::pair<std::vector<Vertex>, std::vector<uint32_t> > cube() {
         // 24 vertices (4 per face) so each face has correct winding
         const std::vector<glm::vec3> positions = {

@@ -50,11 +50,12 @@ namespace app {
     void SolarSystem::init(
         Scene &scene, const Mesh &sphere, const Mesh &asteroidMesh,
         const Pipeline &litPipeline, const Pipeline &unlitPipeline,
-        const Pipeline &earthPipeline, std::list<Texture> &textures,
-        const Device &device, std::list<Mesh> &orbitMeshes
+        const Pipeline &earthPipeline, const Pipeline &ringsPipeline,
+        std::list<Texture> &textures, const Device &device,
+        std::list<Mesh> &orbitMeshes, std::list<Mesh> &ringMeshes
     ) {
         addSun(scene, sphere, unlitPipeline, textures, device);
-        addPlanets(scene, sphere, litPipeline, earthPipeline, textures, device, orbitMeshes);
+        addPlanets(scene, sphere, litPipeline, earthPipeline, ringsPipeline, textures, device, orbitMeshes, ringMeshes);
         addAsteroidBelt(scene, asteroidMesh, litPipeline, textures, device);
     }
 
@@ -72,8 +73,10 @@ namespace app {
     }
 
     void SolarSystem::addPlanets(
-        Scene &scene, const Mesh &sphere, const Pipeline &litPipeline, const Pipeline &earthPipeline,
-        std::list<Texture> &textures, const Device &device, std::list<Mesh> &orbitMeshes
+        Scene &scene, const Mesh &sphere,
+        const Pipeline &litPipeline, const Pipeline &earthPipeline, const Pipeline &ringsPipeline,
+        std::list<Texture> &textures, const Device &device,
+        std::list<Mesh> &orbitMeshes, std::list<Mesh> &ringMeshes
     ) {
         // Sun is index 0, planets start at 1
         uint32_t idx = 1;
@@ -147,6 +150,26 @@ namespace app {
 
             const uint32_t planetIdx = idx++;
             const float parentRadius = r; // already scaled
+
+            // Saturn rings
+            if (planet.name == "Saturn") {
+                textures.emplace_back();
+                vk_util::loadTexture(device, "textures/solar/2k_saturn_ring_alpha.png", textures.back());
+
+                const float innerR = r * SATURN_RING_INNER;
+                const float outerR = r * SATURN_RING_OUTER;
+                auto [ringVerts, ringIndices] = MeshGenerator::disc(innerR, outerR, 128);
+                ringMeshes.emplace_back(device, ringVerts, ringIndices);
+
+                scene.addObject(
+                    ringMeshes.back(), ringsPipeline, &textures.back(),
+                    Transform{},
+                    std::nullopt,
+                    "",
+                    planetIdx
+                );
+                ++idx;
+            }
 
             for (const auto &moon: planet.moons) {
                 textures.emplace_back();

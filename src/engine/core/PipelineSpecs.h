@@ -221,11 +221,11 @@ namespace PipelineSpecs {
         };
     }
 
-    inline PipelineSpec makeEarth(const std::string &shaderPath, vk::Format colorFormat,
-                                  vk::Format depthFormat, vk::SampleCountFlagBits samples) {
+    inline PipelineSpec makeEarth(const std::string &shaderPath, const vk::Format colorFormat,
+                                  const vk::Format depthFormat, const vk::SampleCountFlagBits samples) {
         const auto attrs = Vertex::getAttributeDescriptions();
         // Skip location 2 (color) — Earth shader doesn't use it
-        std::vector<vk::VertexInputAttributeDescription> earthAttrs = {
+        const std::vector<vk::VertexInputAttributeDescription> earthAttrs = {
             attrs[0], // location 0: pos
             attrs[1], // location 1: normal
             attrs[3], // location 3: texcoord
@@ -237,7 +237,7 @@ namespace PipelineSpecs {
         };
 
         // 5 texture bindings: day, night, normal, specular, clouds
-        auto makeSampler = [](uint32_t binding) {
+        auto makeSampler = [](const uint32_t binding) {
             return vk::DescriptorSetLayoutBinding{
                 .binding = binding,
                 .descriptorType = vk::DescriptorType::eCombinedImageSampler,
@@ -258,6 +258,41 @@ namespace PipelineSpecs {
             .depthFormat = depthFormat,
             .samples = samples,
             .pushConstantSize = sizeof(glm::mat4) + sizeof(uint32_t),
+        };
+    }
+
+    inline PipelineSpec makeRings(const std::string &shaderPath, const vk::Format colorFormat,
+                                  const vk::Format depthFormat, const vk::SampleCountFlagBits samples) {
+        const auto attrs = Vertex::getAttributeDescriptions();
+        const std::vector<vk::VertexInputAttributeDescription> ringAttrs = {
+            attrs[0], // pos
+            attrs[2], // color
+            attrs[3], // texcoord
+        };
+
+        vk::DescriptorSetLayoutBinding uboBinding{
+            0, vk::DescriptorType::eUniformBuffer, 1,
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, nullptr
+        };
+        vk::DescriptorSetLayoutBinding samplerBinding{
+            .binding = 1,
+            .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+            .descriptorCount = 1,
+            .stageFlags = vk::ShaderStageFlagBits::eFragment
+        };
+
+        return PipelineSpec{
+            .shaderPath = shaderPath,
+            .colorFormat = colorFormat,
+            .bindingDescription = Vertex::getBindingDescription(),
+            .attributeDescriptions = ringAttrs,
+            .descriptorBindings = {uboBinding, samplerBinding},
+            .depthFormat = depthFormat,
+            .samples = samples,
+            .pushConstantSize = sizeof(glm::mat4) + sizeof(uint32_t),
+            .cullMode = vk::CullModeFlagBits::eNone, // visible from both sides
+            .depthWriteEnable = false, // transparent, don't write depth
+            .blendEnable = true,
         };
     }
 } // namespace PipelineSpecs
