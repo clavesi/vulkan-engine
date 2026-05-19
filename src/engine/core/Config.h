@@ -13,6 +13,7 @@ struct EngineConfig {
     std::string outlineShaderPath = "shaders/shader_outline.spv";
     std::string orbitShaderPath = "shaders/shader_orbit.spv";
     std::string skyboxShaderPath = "shaders/shader_skybox.spv";
+    std::string earthShaderPath = "shaders/shader_earth.spv";
     std::string texturePath = "textures/viking_room.png";
     std::string skyboxTexturePath = "textures/solar/hiptyc_2020_16k_gal.jpg";
     // std::string modelPath = "models/viking_room.obj";

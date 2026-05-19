@@ -29,6 +29,7 @@ public:
         const Pipeline &outlinePipeline,
         const Pipeline &orbitPipeline,
         const Pipeline &skyboxPipeline,
+        const Pipeline &earthPipeline,
         const EngineConfig &config,
         const Scene &scene,
         const Input &input
@@ -80,6 +81,7 @@ private:
     void createDescriptorSets();
     void createOrbitDescriptorSets();
     void createSkyboxDescriptorSet();
+    void createEarthDescriptorSets();
 
     void createPickingResources();
     void recordPickingPass() const;
@@ -92,6 +94,7 @@ private:
     const Pipeline &outlinePipeline;
     const Pipeline &orbitPipeline;
     const Pipeline &skyboxPipeline;
+    const Pipeline &earthPipeline;
     const EngineConfig &config;
     const Scene &scene;
     const Input &input;
@@ -120,6 +123,8 @@ private:
     // One descriptor set per frame for orbit circles — UBO only, no texture
     std::vector<vk::raii::DescriptorSet> orbitDescriptorSets;
     std::vector<vk::raii::DescriptorSet> skyboxDescriptorSets;
+    std::vector<vk::raii::DescriptorSet> earthDescriptorSets;
+    std::vector<vk::raii::DescriptorSet> earthOutlineDescriptorSets;
 
     // Picking - renders object IDs, reads back pixel under cursor
     std::optional<Image> pickingImage;

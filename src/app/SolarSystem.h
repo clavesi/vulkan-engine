@@ -23,8 +23,8 @@ namespace app {
         static void init(
             Scene &scene, const Mesh &sphere, const Mesh &asteroidMesh,
             const Pipeline &litPipeline, const Pipeline &unlitPipeline,
-            std::list<Texture> &textures, const Device &device,
-            std::list<Mesh> &orbitMeshes
+            const Pipeline &earthPipeline, std::list<Texture> &textures,
+            const Device &device, std::list<Mesh> &orbitMeshes
         );
 
     private:
@@ -34,6 +34,7 @@ namespace app {
                            std::list<Texture> &textures, const Device &device);
 
         static void addPlanets(Scene &scene, const Mesh &sphere, const Pipeline &litPipeline,
+                               const Pipeline &earthPipeline,
                                std::list<Texture> &textures, const Device &device, std::list<Mesh> &orbitMeshes);
 
         static void addAsteroidBelt(Scene &scene, const Mesh &asteroidMesh, const Pipeline &litPipeline,

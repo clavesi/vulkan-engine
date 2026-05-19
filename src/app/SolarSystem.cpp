@@ -2,6 +2,7 @@
 #include "core/MeshGenerator.h"
 #include "core/OrbitalBody.h"
 #include "core/Transform.h"
+#include "core/EarthMaterial.h"
 #include "vk/TextureLoader.h"
 #include "io/GltfLoader.h"
 
@@ -49,11 +50,11 @@ namespace app {
     void SolarSystem::init(
         Scene &scene, const Mesh &sphere, const Mesh &asteroidMesh,
         const Pipeline &litPipeline, const Pipeline &unlitPipeline,
-        std::list<Texture> &textures, const Device &device,
-        std::list<Mesh> &orbitMeshes
+        const Pipeline &earthPipeline, std::list<Texture> &textures,
+        const Device &device, std::list<Mesh> &orbitMeshes
     ) {
         addSun(scene, sphere, unlitPipeline, textures, device);
-        addPlanets(scene, sphere, litPipeline, textures, device, orbitMeshes);
+        addPlanets(scene, sphere, litPipeline, earthPipeline, textures, device, orbitMeshes);
         addAsteroidBelt(scene, asteroidMesh, litPipeline, textures, device);
     }
 
@@ -64,24 +65,20 @@ namespace app {
         textures.emplace_back();
         vk_util::loadTexture(device, "textures/solar/2k_sun.jpg", textures.back());
         scene.addObject(
-            sphere, unlitPipeline, textures.back(),
+            sphere, unlitPipeline, &textures.back(),
             Transform{.scale = {SUN_RADIUS, SUN_RADIUS, SUN_RADIUS}},
             std::nullopt, "Sun"
         );
     }
 
     void SolarSystem::addPlanets(
-        Scene &scene, const Mesh &sphere, const Pipeline &litPipeline,
-        std::list<Texture> &textures, const Device &device,
-        std::list<Mesh> &orbitMeshes
+        Scene &scene, const Mesh &sphere, const Pipeline &litPipeline, const Pipeline &earthPipeline,
+        std::list<Texture> &textures, const Device &device, std::list<Mesh> &orbitMeshes
     ) {
         // Sun is index 0, planets start at 1
         uint32_t idx = 1;
         size_t colorIdx = 0;
         for (const auto &planet: planets) {
-            textures.emplace_back();
-            vk_util::loadTexture(device, planet.texturePath, textures.back());
-
             const float r = planet.radiusKm * RADIUS_SCALE;
             const float planetOrbit = planet.orbitAu * AU_SCALE;
             const float planetSpeed = (glm::two_pi<float>() / (planet.periodDays / DAYS_PER_YEAR)) * PERIOD_SCALE;
@@ -91,21 +88,57 @@ namespace app {
                 glm::vec3{1.0f, 0.0f, 0.0f}
             );
 
-            scene.addObject(
-                sphere, litPipeline, textures.back(),
-                Transform{
-                    .position = {
-                        planetOrbit, 0.0f, 0.0f
+            if (planet.name == "Earth") {
+                // Load all five Earth textures
+                textures.emplace_back();
+                vk_util::loadTexture(device, "textures/solar/2k_earth_daymap.jpg", textures.back());
+                const Texture *day = &textures.back();
+                textures.emplace_back();
+                vk_util::loadTexture(device, "textures/solar/2k_earth_nightmap.jpg", textures.back());
+                const Texture *night = &textures.back();
+                textures.emplace_back();
+                vk_util::loadTexture(device, "textures/solar/2k_earth_normal_map.jpg", textures.back());
+                const Texture *normal = &textures.back();
+                textures.emplace_back();
+                vk_util::loadTexture(device, "textures/solar/2k_earth_specular_map.jpg", textures.back());
+                const Texture *specular = &textures.back();
+                textures.emplace_back();
+                vk_util::loadTexture(device, "textures/solar/2k_earth_clouds.jpg", textures.back());
+                const Texture *clouds = &textures.back();
+
+                EarthMaterial earthMat{day, night, normal, specular, clouds};
+
+                scene.addObject(
+                    sphere, earthPipeline, earthMat,
+                    Transform{.position = {planetOrbit, 0.0f, 0.0f}, .scale = {r, r, r}},
+                    OrbitalBody{.radius = planetOrbit, .speed = planetSpeed},
+                    planet.name,
+                    std::nullopt,
+                    &planet,
+                    rotSpeed,
+                    tilt
+                );
+            } else {
+                // existing single-texture path
+                textures.emplace_back();
+                vk_util::loadTexture(device, planet.texturePath, textures.back());
+                scene.addObject(
+                    sphere, litPipeline, &textures.back(),
+                    Transform{
+                        .position = {planetOrbit, 0.0f, 0.0f},
+                        .scale = {r, r, r}
                     },
-                    .scale = {r, r, r}
-                },
-                OrbitalBody{.radius = planetOrbit, .speed = planetSpeed},
-                planet.name,
-                std::nullopt,
-                &planet,
-                rotSpeed,
-                tilt
-            );
+                    OrbitalBody{
+                        .radius = planetOrbit,
+                        .speed = planetSpeed
+                    },
+                    planet.name,
+                    std::nullopt,
+                    &planet,
+                    rotSpeed,
+                    tilt
+                );
+            }
 
             // Orbit circle
             auto [verts, indices] = MeshGenerator::circle(planetOrbit, 128);
@@ -128,7 +161,7 @@ namespace app {
                 const glm::vec3 parentPos = scene.getObjects()[planetIdx].transform.position;
 
                 scene.addObject(
-                    sphere, litPipeline, textures.back(),
+                    sphere, litPipeline, &textures.back(),
                     Transform{
                         .position = parentPos + glm::vec3{moonOrbit, 0.0f, 0.0f},
                         .scale = {mr, mr, mr}
@@ -188,7 +221,7 @@ namespace app {
                                                  }));
 
             scene.addObject(
-                asteroidMesh, litPipeline, asteroidTex,
+                asteroidMesh, litPipeline, &asteroidTex,
                 Transform{.position = pos, .rotation = rot, .scale = {s, s, s}},
                 OrbitalBody{.radius = orbit, .speed = speed, .angle = angle}
                 // no name — won't show in UI

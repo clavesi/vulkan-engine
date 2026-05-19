@@ -54,6 +54,7 @@ private:
     Pipeline outlinePipeline; // outline for object mouse over
     Pipeline orbitPipeline; // draw planets' orbit
     Pipeline skyboxPipeline; // skybox
+    Pipeline earthPipeline; // skybox
     std::list<Mesh> meshes; // owns mesh data
     std::list<Texture> textures; // owns texture data
     Scene scene;

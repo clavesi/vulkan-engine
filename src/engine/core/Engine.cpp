@@ -48,8 +48,15 @@ Engine::Engine(EngineConfig cfg)
           PipelineSpecs::makeSkybox(config.skyboxShaderPath, swapChain.format(), swapChain.depthFormat(),
                                     swapChain.samples())
       ),
-      renderer(device, swapChain, pipeline, pickingPipeline, outlinePipeline, orbitPipeline, skyboxPipeline, config,
-               scene, input),
+      earthPipeline(
+          device,
+          PipelineSpecs::makeEarth(config.earthShaderPath, swapChain.format(), swapChain.depthFormat(),
+                                   swapChain.samples())
+      ),
+      renderer(
+          device, swapChain, pipeline, pickingPipeline, outlinePipeline, orbitPipeline, skyboxPipeline,
+          earthPipeline, config, scene, input
+      ),
       imguiRenderer(device, swapChain, instance.get(), window.glfwHandle()) {
     input.init(window.glfwHandle());
     imguiRenderer.initGlfw(window.glfwHandle());
@@ -277,5 +284,9 @@ void Engine::initScene() {
     meshes.emplace_back(device, asteroidVertices, asteroidIndices);
     const Mesh &asteroidMesh = meshes.back();
 
-    solarSystem.init(scene, sphere, asteroidMesh, pipeline, unlitPipeline, textures, device, orbitMeshes);
+    solarSystem.init(
+        scene, sphere, asteroidMesh,
+        pipeline, unlitPipeline, earthPipeline,
+        textures, device, orbitMeshes
+    );
 }

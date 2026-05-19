@@ -42,7 +42,7 @@ void Scene::update(float deltaTime) {
 void Scene::addObject(
     const Mesh &mesh,
     const Pipeline &pipeline,
-    const Texture &texture,
+    std::variant<const Texture *, EarthMaterial> material,
     Transform transform,
     std::optional<OrbitalBody> orbital,
     std::string name,
@@ -53,7 +53,8 @@ void Scene::addObject(
 ) {
     objects.push_back(
         {
-            &mesh, &pipeline, &texture, std::move(transform), std::move(orbital), parentIndex, std::move(name), bodyDef,
+            &mesh, &pipeline, std::move(material), std::move(transform), std::move(orbital), parentIndex,
+            std::move(name), bodyDef,
             rotationSpeedRads, tiltRotation
         }
     );

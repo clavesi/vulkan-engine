@@ -13,7 +13,7 @@ public:
     void addObject(
         const Mesh &mesh,
         const Pipeline &pipeline,
-        const Texture &texture,
+        std::variant<const Texture *, EarthMaterial> material,
         Transform transform = {},
         std::optional<OrbitalBody> orbital = std::nullopt,
         std::string name = "",
