@@ -16,7 +16,6 @@
 
 #include <vulkan/vulkan_raii.hpp>
 
-#include <vector>
 #include <list>
 
 class Engine {
@@ -53,13 +52,24 @@ private:
     Pipeline unlitPipeline; // unlit
     Pipeline pickingPipeline; // picking for detecting object mouse over
     Pipeline outlinePipeline; // outline for object mouse over
-    std::vector<Mesh> meshes; // owns mesh data
+    Pipeline orbitPipeline; // draw planets' orbit
+    Pipeline skyboxPipeline; // skybox
+    Pipeline earthPipeline; // skybox
+    Pipeline ringsPipeline; // skybox
+    std::list<Mesh> meshes; // owns mesh data
     std::list<Texture> textures; // owns texture data
     Scene scene;
     Renderer renderer; // holds raw pointers into meshes
     ImGuiRenderer imguiRenderer;
 
+    std::list<Mesh> orbitMeshes;
+    std::optional<Mesh> skyboxMesh;
+    Texture skyboxTexture;
+
+    std::list<Mesh> ringMeshes;
+
     bool paused = false;
 
+    float simSpeed = 1.0f;
     app::SolarSystem solarSystem;
 };

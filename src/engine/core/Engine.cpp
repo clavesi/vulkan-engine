@@ -1,160 +1,15 @@
 #include "Engine.h"
+#include "PipelineSpecs.h"
 #include "Vertex.h"
 #include "vk/TextureLoader.h"
 #include "core/MeshGenerator.h"
+#include "io/GltfLoader.h"
 
 #include <imgui.h>
 
 #include <chrono>
 #include <fstream>
 #include <iostream>
-
-namespace {
-    PipelineSpec makeMainPipelineSpec(const std::string &shaderPath, const vk::Format colorFormat,
-                                      const vk::Format depthFormat, const vk::SampleCountFlagBits samples) {
-        const auto attrs = Vertex::getAttributeDescriptions();
-
-        // Vertex shader reads MVP matrices from the UBO
-        vk::DescriptorSetLayoutBinding uboBinding{
-            0,
-            vk::DescriptorType::eUniformBuffer,
-            1,
-            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-            nullptr
-        };
-
-        // Fragment shader samples colors from the texture
-        vk::DescriptorSetLayoutBinding samplerBinding{
-            .binding = 1,
-            .descriptorType = vk::DescriptorType::eCombinedImageSampler,
-            .descriptorCount = 1,
-            .stageFlags = vk::ShaderStageFlagBits::eFragment
-        };
-
-        return PipelineSpec{
-            .shaderPath = shaderPath,
-            .colorFormat = colorFormat,
-            .bindingDescription = Vertex::getBindingDescription(),
-            .attributeDescriptions = {attrs.begin(), attrs.end()},
-            .descriptorBindings = {uboBinding, samplerBinding},
-            .depthFormat = depthFormat,
-            .samples = samples,
-            .pushConstantSize = sizeof(glm::mat4) + sizeof(uint32_t),
-        };
-    }
-
-    PipelineSpec makeUnlitPipelineSpec(const std::string &shaderPath,
-                                       const vk::Format colorFormat,
-                                       const vk::Format depthFormat,
-                                       const vk::SampleCountFlagBits samples) {
-        // Same as lit spec but with only 3 attributes — no normal
-        const auto attrs = Vertex::getAttributeDescriptions();
-
-        vk::DescriptorSetLayoutBinding uboBinding{
-            0, vk::DescriptorType::eUniformBuffer, 1,
-            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-            nullptr
-        };
-        vk::DescriptorSetLayoutBinding samplerBinding{
-            .binding = 1,
-            .descriptorType = vk::DescriptorType::eCombinedImageSampler,
-            .descriptorCount = 1,
-            .stageFlags = vk::ShaderStageFlagBits::eFragment
-        };
-
-        // Only locations 0, 2, 3 — skip normal at location 1
-        std::vector<vk::VertexInputAttributeDescription> unlitAttrs = {
-            attrs[0], // location 0: pos
-            attrs[2], // location 2: color
-            attrs[3], // location 3: texcoord
-        };
-
-        return PipelineSpec{
-            .shaderPath = shaderPath,
-            .colorFormat = colorFormat,
-            .bindingDescription = Vertex::getBindingDescription(),
-            .attributeDescriptions = unlitAttrs,
-            .descriptorBindings = {uboBinding, samplerBinding},
-            .depthFormat = depthFormat,
-            .samples = samples,
-            .pushConstantSize = sizeof(glm::mat4) + sizeof(uint32_t),
-        };
-    }
-
-    PipelineSpec makePickingPipelineSpec(
-        const std::string &shaderPath,
-        const vk::Format depthFormat,
-        const vk::SampleCountFlagBits samples
-    ) {
-        std::vector<vk::VertexInputAttributeDescription> pickingAttrs = {
-            Vertex::getAttributeDescriptions()[0], // location 0: pos only
-        };
-
-        vk::DescriptorSetLayoutBinding uboBinding{
-            0, vk::DescriptorType::eUniformBuffer, 1,
-            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-            nullptr
-        };
-        vk::DescriptorSetLayoutBinding samplerBinding{
-            .binding = 1,
-            .descriptorType = vk::DescriptorType::eCombinedImageSampler,
-            .descriptorCount = 1,
-            .stageFlags = vk::ShaderStageFlagBits::eFragment
-        };
-
-        return PipelineSpec{
-            .shaderPath = shaderPath,
-            .colorFormat = vk::Format::eR32Uint, // picking image format
-            .bindingDescription = Vertex::getBindingDescription(),
-            .attributeDescriptions = pickingAttrs,
-            .descriptorBindings = {uboBinding, samplerBinding},
-            .depthFormat = depthFormat,
-            .samples = vk::SampleCountFlagBits::e1,
-            .pushConstantSize = sizeof(glm::mat4) + sizeof(uint32_t), // no MSAA for picking
-            .colorAttachmentFormat = vk::Format::eR32Uint,
-        };
-    }
-
-    PipelineSpec makeOutlinePipelineSpec(
-        const std::string &shaderPath,
-        const vk::Format colorFormat,
-        const vk::Format depthFormat,
-        const vk::SampleCountFlagBits samples
-    ) {
-        const auto attrs = Vertex::getAttributeDescriptions();
-        std::vector<vk::VertexInputAttributeDescription> outlineAttrs = {
-            attrs[0], // location 0: pos
-            attrs[1], // location 1: normal
-        };
-
-        vk::DescriptorSetLayoutBinding uboBinding{
-            0, vk::DescriptorType::eUniformBuffer, 1,
-            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-            nullptr
-        };
-        vk::DescriptorSetLayoutBinding samplerBinding{
-            .binding = 1,
-            .descriptorType = vk::DescriptorType::eCombinedImageSampler,
-            .descriptorCount = 1,
-            .stageFlags = vk::ShaderStageFlagBits::eFragment
-        };
-
-        return PipelineSpec{
-            .shaderPath = shaderPath,
-            .colorFormat = colorFormat,
-            .bindingDescription = Vertex::getBindingDescription(),
-            .attributeDescriptions = outlineAttrs,
-            .descriptorBindings = {uboBinding, samplerBinding},
-            .depthFormat = depthFormat,
-            .samples = samples,
-            .pushConstantSize = sizeof(glm::mat4) + sizeof(uint32_t),
-            .cullMode = vk::CullModeFlagBits::eFront,
-            .depthTestEnable = true,
-            .depthWriteEnable = false,
-            .depthCompareOp = vk::CompareOp::eLess,
-        };
-    }
-} // namespace
 
 Engine::Engine(EngineConfig cfg)
     : config(std::move(cfg)),
@@ -167,27 +22,51 @@ Engine::Engine(EngineConfig cfg)
       swapChain(device, window, surface),
       pipeline(
           device,
-          makeMainPipelineSpec(config.shaderPath, swapChain.format(), swapChain.depthFormat(), swapChain.samples())
+          PipelineSpecs::makeMain(config.shaderPath, swapChain.format(), swapChain.depthFormat(), swapChain.samples())
       ),
       unlitPipeline(
           device,
-          makeUnlitPipelineSpec(config.unlitShaderPath, swapChain.format(), swapChain.depthFormat(),
-                                swapChain.samples())
+          PipelineSpecs::makeUnlit(config.unlitShaderPath, swapChain.format(), swapChain.depthFormat(),
+                                   swapChain.samples())
       ),
       pickingPipeline(
           device,
-          makePickingPipelineSpec(config.pickingShaderPath, swapChain.depthFormat(), swapChain.samples())
+          PipelineSpecs::makePicking(config.pickingShaderPath, swapChain.depthFormat(), swapChain.samples())
       ),
       outlinePipeline(
           device,
-          makeOutlinePipelineSpec(config.outlineShaderPath, swapChain.format(), swapChain.depthFormat(),
-                                  swapChain.samples())
+          PipelineSpecs::makeOutline(config.outlineShaderPath, swapChain.format(), swapChain.depthFormat(),
+                                     swapChain.samples())
       ),
-      renderer(device, swapChain, pipeline, pickingPipeline, outlinePipeline, config, scene, input),
+      orbitPipeline(
+          device,
+          PipelineSpecs::makeOrbit(config.orbitShaderPath, swapChain.format(), swapChain.depthFormat(),
+                                   swapChain.samples())
+      ),
+      skyboxPipeline(
+          device,
+          PipelineSpecs::makeSkybox(config.skyboxShaderPath, swapChain.format(), swapChain.depthFormat(),
+                                    swapChain.samples())
+      ),
+      earthPipeline(
+          device,
+          PipelineSpecs::makeEarth(config.earthShaderPath, swapChain.format(), swapChain.depthFormat(),
+                                   swapChain.samples())
+      ),
+      ringsPipeline(
+          device,
+          PipelineSpecs::makeRings(config.ringsShaderPath, swapChain.format(), swapChain.depthFormat(),
+                                   swapChain.samples())
+      ),
+      renderer(
+          device, swapChain, pipeline, pickingPipeline, outlinePipeline, orbitPipeline, skyboxPipeline,
+          earthPipeline, config, scene, input
+      ),
       imguiRenderer(device, swapChain, instance.get(), window.glfwHandle()) {
     input.init(window.glfwHandle());
     imguiRenderer.initGlfw(window.glfwHandle());
     initScene();
+    renderer.setSkybox(*skyboxMesh, skyboxTexture);
     renderer.onSceneReady();
 }
 
@@ -211,44 +90,59 @@ void Engine::mainLoop() {
         const float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
         lastTime = currentTime;
 
-        window.pollEvents();
+        Window::pollEvents();
         imguiRenderer.beginFrame();
 
         const bool resized = window.wasResized();
         if (resized) window.resetResizedFlag();
 
-        camera.onScroll(input.getScrollDelta());
-        camera.update(deltaTime);
-
         const bool imguiWantsMouse = ImGui::GetIO().WantCaptureMouse;
-        const bool imguiWantsKeyboard = ImGui::GetIO().WantCaptureKeyboard;
         if (!imguiWantsMouse) {
             if (input.isMouseButtonDown(GLFW_MOUSE_BUTTON_RIGHT)) {
                 camera.onMouseDrag(input.getMouseDelta());
             }
-            // Double click to change follow target
-            if (input.wasDoubleClicked(GLFW_MOUSE_BUTTON_LEFT)) {
+            // Double click to change follow target - double-click only makes sense in orbit mode
+            if (!camera.isFreeCam() && input.wasDoubleClicked(GLFW_MOUSE_BUTTON_LEFT)) {
                 const uint32_t hovered = renderer.getHoveredObjectId();
                 if (hovered != UINT32_MAX) {
                     camera.setFollowTarget(hovered);
-                    const auto &obj = scene.getObjects()[hovered];
-                    camera.setDesiredDistance(obj.transform.scale.x * 5.0f);
+                    camera.setDesiredDistance(scene.getObjects()[hovered].transform.scale.x * 8.0f);
                 }
             }
         }
 
+        const bool imguiWantsKeyboard = ImGui::GetIO().WantCaptureKeyboard;
         if (!imguiWantsKeyboard) {
             if (input.wasKeyPressed(GLFW_KEY_ESCAPE)) {
-                camera.resetTarget();
+                if (camera.isFreeCam()) {
+                    camera.toggleFreeCam(); // back to orbit
+                } else {
+                    camera.resetTarget(); // existing reset behavior
+                }
             }
             if (input.wasKeyPressed(GLFW_KEY_SPACE)) {
                 paused = !paused;
             }
+            if (input.wasKeyPressed(GLFW_KEY_F)) {
+                camera.toggleFreeCam();
+            }
+
+            // WASD movement in free cam
+            if (camera.isFreeCam()) {
+                glm::vec3 move{0.0f};
+                if (input.isKeyDown(GLFW_KEY_D)) move.x += 1.0f;
+                if (input.isKeyDown(GLFW_KEY_A)) move.x -= 1.0f;
+                if (input.isKeyDown(GLFW_KEY_W)) move.y += 1.0f;
+                if (input.isKeyDown(GLFW_KEY_S)) move.y -= 1.0f;
+                if (input.isKeyDown(GLFW_KEY_E)) move.z += 1.0f;
+                if (input.isKeyDown(GLFW_KEY_Q)) move.z -= 1.0f;
+                camera.onFreeCamMove(move, deltaTime);
+            }
         }
 
-        // Build pause UI
+        // Build controls UI
         ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Always);
-        ImGui::SetNextWindowSize(ImVec2(120, 50), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(120, 0), ImGuiCond_Always);
         ImGui::Begin("##controls", nullptr,
                      ImGuiWindowFlags_NoDecoration |
                      ImGuiWindowFlags_NoMove |
@@ -258,11 +152,26 @@ void Engine::mainLoop() {
         if (ImGui::Button(paused ? "  Resume" : "  Pause", ImVec2(100, 34))) {
             paused = !paused;
         }
+        // Log-space speed slider
+        float logSpeed = std::log10(simSpeed);
+        ImGui::Text("Speed: %.2fx", simSpeed);
+        ImGui::SetNextItemWidth(100.0f);
+        if (ImGui::SliderFloat("##speed", &logSpeed, -2.0f, 1.0f, "")) {
+            simSpeed = std::pow(10.0f, logSpeed);
+        }
+        if (camera.isFreeCam()) {
+            ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "  Free Cam");
+            ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "  F to exit");
+        } else {
+            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.6f, 1.0f), "  Orbit Cam");
+            ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "  F to fly");
+        }
+        const float controlsBottom = ImGui::GetWindowPos().y + ImGui::GetWindowSize().y;
         ImGui::End();
 
-        // Planet list panel
-        ImGui::SetNextWindowPos(ImVec2(10, 70), ImGuiCond_Always);
-        ImGui::SetNextWindowSize(ImVec2(140, 0), ImGuiCond_Always); // 0 height = auto
+        // Planet list panel — anchored below controls window
+        ImGui::SetNextWindowPos(ImVec2(10, controlsBottom + 8), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(150, 0), ImGuiCond_Always);
         ImGui::Begin("##planets", nullptr,
                      ImGuiWindowFlags_NoDecoration |
                      ImGuiWindowFlags_NoMove |
@@ -272,7 +181,10 @@ void Engine::mainLoop() {
         const auto &objects = scene.getObjects();
         for (size_t i = 0; i < objects.size(); ++i) {
             const auto &obj = objects[i];
+            // Only top-level objects (no parent) in main loop
+            if (obj.parentIndex) continue;
             if (obj.name.empty()) continue;
+
             const bool isFollowing = camera.isFollowing() && camera.getFollowObjectId() == i;
             if (isFollowing) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.5f, 0.8f, 1.0f));
             if (ImGui::Button(obj.name.c_str(), ImVec2(120, 0))) {
@@ -280,8 +192,58 @@ void Engine::mainLoop() {
                 camera.setDesiredDistance(obj.transform.scale.x * 8.0f);
             }
             if (isFollowing) ImGui::PopStyleColor();
+
+            // Moons — find children of this planet and indent buttons
+            for (size_t j = 0; j < objects.size(); ++j) {
+                const auto &moon = objects[j];
+                if (!moon.parentIndex || *moon.parentIndex != i) continue;
+                if (moon.name.empty()) continue;
+
+                ImGui::Indent(12.0f);
+                const bool moonFollowing = camera.isFollowing() && camera.getFollowObjectId() == j;
+                ImGui::PushStyleColor(
+                    ImGuiCol_Text,
+                    moonFollowing
+                        ? ImVec4(0.4f, 0.7f, 1.0f, 1.0f) // highlight when following
+                        : ImVec4(0.7f, 0.7f, 0.7f, 1.0f) // dimmed otherwise
+                );
+                if (ImGui::Selectable(moon.name.c_str(), moonFollowing, 0, ImVec2(104, 0))) {
+                    camera.setFollowTarget(static_cast<uint32_t>(j));
+                    camera.setDesiredDistance(moon.transform.scale.x * 8.0f);
+                }
+                ImGui::PopStyleColor();
+                ImGui::Unindent(12.0f);
+            }
         }
         ImGui::End();
+
+        // Planet info panel — shown when following a planet
+        if (camera.isFollowing()) {
+            const uint32_t id = camera.getFollowObjectId();
+            if (id < objects.size() && objects[id].bodyDef) {
+                const auto *def = objects[id].bodyDef;
+
+                ImGui::SetNextWindowPos(ImVec2(static_cast<float>(config.windowWidth) - 210.0f, 10.0f),
+                                        ImGuiCond_Always);
+                ImGui::SetNextWindowSize(ImVec2(200, 0), ImGuiCond_Always);
+                ImGui::Begin("##planetinfo", nullptr,
+                             ImGuiWindowFlags_NoDecoration |
+                             ImGuiWindowFlags_NoMove |
+                             ImGuiWindowFlags_NoBackground |
+                             ImGuiWindowFlags_NoBringToFrontOnFocus
+                );
+
+                ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "%s", def->name.c_str());
+                ImGui::Separator();
+                ImGui::Text("Radius:  %.0f km", def->radiusKm);
+                ImGui::Text("Day:     %.2f Earth days", def->rotationDays);
+                ImGui::Text("Year:    %.2f Earth days", def->periodDays);
+
+                ImGui::End();
+            }
+        }
+
+        scene.update(paused ? 0.0f : deltaTime * simSpeed);
 
         // Update follow target position each frame
         if (camera.isFollowing()) {
@@ -291,11 +253,11 @@ void Engine::mainLoop() {
             }
         }
 
-        scene.update(paused ? 0.0f : deltaTime);
+        camera.onScroll(input.getScrollDelta());
+        camera.update(deltaTime);
 
         const auto [width, height] = window.getFramebufferSize();
         const float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
-
         const glm::vec2 contentScale = window.getContentScale();
         renderer.drawFrame(
             camera.getViewMatrix(),
@@ -314,10 +276,25 @@ void Engine::mainLoop() {
 }
 
 void Engine::initScene() {
+    // Skybox
+    auto [skyVerts, skyIndices] = MeshGenerator::cube();
+    skyboxMesh.emplace(device, skyVerts, skyIndices);
+    vk_util::loadTexture(device, config.skyboxTexturePath, skyboxTexture);
+
     // Load mesh
-    auto [vertices, indices] = MeshGenerator::sphere(1.0f, 64, 64);
-    meshes.emplace_back(device, vertices, indices);
+    auto [sphereVertices, sphereIndices] = MeshGenerator::sphere(1.0f, 64, 64);
+    meshes.emplace_back(device, sphereVertices, sphereIndices);
     const Mesh &sphere = meshes.back();
 
-    solarSystem.init(scene, sphere, pipeline, unlitPipeline, textures, device);
+    auto [asteroidVertices, asteroidIndices] = io::loadGltfMesh(config.asteroidModelPath);
+    meshes.emplace_back(device, asteroidVertices, asteroidIndices);
+    const Mesh &asteroidMesh = meshes.back();
+
+    solarSystem.init(
+        scene, sphere, asteroidMesh,
+        pipeline, unlitPipeline,
+        earthPipeline, ringsPipeline,
+        textures, device,
+        orbitMeshes, ringMeshes
+    );
 }

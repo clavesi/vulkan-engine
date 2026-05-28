@@ -69,4 +69,100 @@ namespace MeshGenerator {
 
         return {std::move(vertices), std::move(indices)};
     }
+
+    std::pair<std::vector<Vertex>, std::vector<uint32_t> > circle(
+        const float radius,
+        const uint32_t segments
+    ) {
+        std::vector<Vertex> vertices;
+        vertices.reserve(segments + 1);
+
+        for (uint32_t i = 0; i <= segments; ++i) {
+            const float angle = (static_cast<float>(i) / static_cast<float>(segments)) * glm::two_pi<float>();
+            Vertex v{};
+            v.pos = {std::cos(angle) * radius, std::sin(angle) * radius, 0.0f};
+            vertices.push_back(v);
+        }
+
+        // Empty indices — drawn as line strip directly
+        return {vertices, {}};
+    }
+
+    std::pair<std::vector<Vertex>, std::vector<uint32_t> > disc(
+        float innerRadius, float outerRadius, uint32_t segments
+    ) {
+        std::vector<Vertex> vertices;
+        std::vector<uint32_t> indices;
+
+        for (uint32_t i = 0; i <= segments; ++i) {
+            const float angle = (static_cast<float>(i) / static_cast<float>(segments)) * glm::two_pi<float>();
+            const float cosA = std::cos(angle);
+            const float sinA = std::sin(angle);
+
+            // Inner vertex — UV.x = 0
+            Vertex inner{};
+            inner.pos = {cosA * innerRadius, sinA * innerRadius, 0.0f};
+            inner.normal = {0.0f, 0.0f, 1.0f};
+            inner.texCoord = {0.0f, static_cast<float>(i) / static_cast<float>(segments)};
+            inner.color = {1.0f, 1.0f, 1.0f};
+            vertices.push_back(inner);
+
+            // Outer vertex — UV.x = 1
+            Vertex outer{};
+            outer.pos = {cosA * outerRadius, sinA * outerRadius, 0.0f};
+            outer.normal = {0.0f, 0.0f, 1.0f};
+            outer.texCoord = {1.0f, static_cast<float>(i) / static_cast<float>(segments)};
+            outer.color = {1.0f, 1.0f, 1.0f};
+            vertices.push_back(outer);
+        }
+
+        // Two triangles per segment
+        for (uint32_t i = 0; i < segments; ++i) {
+            const uint32_t base = i * 2;
+            indices.push_back(base + 0);
+            indices.push_back(base + 2);
+            indices.push_back(base + 1);
+            indices.push_back(base + 1);
+            indices.push_back(base + 2);
+            indices.push_back(base + 3);
+        }
+
+        return {std::move(vertices), std::move(indices)};
+    }
+
+    std::pair<std::vector<Vertex>, std::vector<uint32_t> > cube() {
+        // 24 vertices (4 per face) so each face has correct winding
+        const std::vector<glm::vec3> positions = {
+            // +X
+            {1, -1, -1}, {1, 1, -1}, {1, 1, 1}, {1, -1, 1},
+            // -X
+            {-1, -1, 1}, {-1, 1, 1}, {-1, 1, -1}, {-1, -1, -1},
+            // +Y
+            {-1, 1, -1}, {-1, 1, 1}, {1, 1, 1}, {1, 1, -1},
+            // -Y
+            {-1, -1, 1}, {-1, -1, -1}, {1, -1, -1}, {1, -1, 1},
+            // +Z
+            {-1, -1, 1}, {1, -1, 1}, {1, 1, 1}, {-1, 1, 1},
+            // -Z
+            {1, -1, -1}, {-1, -1, -1}, {-1, 1, -1}, {1, 1, -1},
+        };
+
+        std::vector<Vertex> vertices;
+        for (const auto &p: positions) {
+            Vertex v{};
+            v.pos = p;
+            vertices.push_back(v);
+        }
+
+        std::vector<uint32_t> indices;
+        for (uint32_t face = 0; face < 6; ++face) {
+            const uint32_t base = face * 4;
+            indices.insert(indices.end(), {
+                               base + 0, base + 1, base + 2,
+                               base + 2, base + 3, base + 0
+                           });
+        }
+
+        return {std::move(vertices), std::move(indices)};
+    }
 }

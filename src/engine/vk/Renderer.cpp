@@ -19,6 +19,9 @@ Renderer::Renderer(
     const Pipeline &pipeline,
     const Pipeline &pickingPipeline,
     const Pipeline &outlinePipeline,
+    const Pipeline &orbitPipeline,
+    const Pipeline &skyboxPipeline,
+    const Pipeline &earthPipeline,
     const EngineConfig &config,
     const Scene &scene,
     const Input &input
@@ -28,6 +31,9 @@ Renderer::Renderer(
       pipeline(pipeline),
       pickingPipeline(pickingPipeline),
       outlinePipeline(outlinePipeline),
+      orbitPipeline(orbitPipeline),
+      skyboxPipeline(skyboxPipeline),
+      earthPipeline(earthPipeline),
       config(config),
       scene(scene),
       input(input) {
@@ -299,56 +305,100 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
     );
     commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), extent));
 
-    for (const auto &obj: scene.getObjects()) {
-        const uint32_t objIdx = static_cast<uint32_t>(&obj - scene.getObjects().data());
-
-        // Bind this object's pipeline
-        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, obj.pipeline->handle());
-
-        // Descriptor set must be bound after pipeline
+    // ===== Skybox — draw first, behind everything =====
+    if (skyboxMesh && skyboxTexture) {
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, skyboxPipeline.handle());
         commandBuffer.bindDescriptorSets(
             vk::PipelineBindPoint::eGraphics,
-            obj.pipeline->layout(),
-            0,
-            *descriptorSets[objIdx][frameIndex],
-            nullptr
+            skyboxPipeline.layout(), 0,
+            *skyboxDescriptorSets[frameIndex], nullptr
         );
+        constexpr vk::DeviceSize offset = 0;
+        commandBuffer.bindVertexBuffers(0, *skyboxMesh->vertexBuffer().handle(), offset);
+        commandBuffer.bindIndexBuffer(*skyboxMesh->indexBuffer().handle(), 0, vk::IndexType::eUint32);
+        commandBuffer.drawIndexed(skyboxMesh->indexCount(), 1, 0, 0, 0);
+    }
 
-        // Push the model matrix for this object
-        const PushConstantData pushData{
-            .model = obj.transform.matrix(),
-            .objectId = static_cast<uint32_t>(&obj - scene.getObjects().data())
-        };
-        commandBuffer.pushConstants<PushConstantData>(
-            obj.pipeline->layout(),
-            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-            0,
-            pushData
-        );
+    // ===== Objects =====
+    uint32_t objIdx = 0;
+    for (const auto &obj: scene.getObjects()) {
+        if (std::holds_alternative<EarthMaterial>(obj.material)) {
+            commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, earthPipeline.handle());
+            commandBuffer.bindDescriptorSets(
+                vk::PipelineBindPoint::eGraphics,
+                earthPipeline.layout(), 0,
+                *earthDescriptorSets[frameIndex], nullptr
+            );
+            const PushConstantData pushData{.model = obj.transform.matrix(), .objectId = objIdx};
+            commandBuffer.pushConstants<PushConstantData>(
+                earthPipeline.layout(),
+                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+                0, pushData
+            );
+        } else {
+            commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, obj.pipeline->handle());
+            commandBuffer.bindDescriptorSets(
+                vk::PipelineBindPoint::eGraphics,
+                obj.pipeline->layout(), 0,
+                *descriptorSets[objIdx][frameIndex], nullptr
+            );
+            const PushConstantData pushData{.model = obj.transform.matrix(), .objectId = objIdx};
+            commandBuffer.pushConstants<PushConstantData>(
+                obj.pipeline->layout(),
+                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+                0, pushData
+            );
+        }
 
         constexpr vk::DeviceSize offset = 0;
         commandBuffer.bindVertexBuffers(0, *obj.mesh->vertexBuffer().handle(), offset);
         commandBuffer.bindIndexBuffer(*obj.mesh->indexBuffer().handle(), 0, vk::IndexType::eUint32);
         commandBuffer.drawIndexed(obj.mesh->indexCount(), 1, 0, 0, 0);
+        ++objIdx;
     }
 
-    // Outline pass — draw hovered object slightly scaled up
+    // ===== Planet orbits =====
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, orbitPipeline.handle());
+    commandBuffer.bindDescriptorSets(
+        vk::PipelineBindPoint::eGraphics,
+        orbitPipeline.layout(), 0,
+        *orbitDescriptorSets[frameIndex], nullptr
+    );
+
+    for (const auto &circle: scene.getOrbitCircles()) {
+        struct OrbitPushConstant {
+            glm::mat4 model;
+            glm::vec3 color;
+        };
+        const OrbitPushConstant push{
+            .model = glm::mat4(1.0f),
+            .color = circle.color
+        };
+        commandBuffer.pushConstants<OrbitPushConstant>(
+            orbitPipeline.layout(),
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+            0, push
+        );
+        constexpr vk::DeviceSize offset = 0;
+        commandBuffer.bindVertexBuffers(0, *circle.mesh->vertexBuffer().handle(), offset);
+        commandBuffer.draw(circle.mesh->vertexCount(), 1, 0, 0);
+    }
+
+    // ===== Outline pass — draw hovered object slightly scaled up =====
     if (hoveredObjectId != UINT32_MAX && hoveredObjectId < scene.getObjects().size()) {
         const auto &obj = scene.getObjects()[hoveredObjectId];
 
-        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics,
-                                   outlinePipeline.handle());
+        // For Earth, use specific earthOutlineDescriptorSets; otherwise use regular descriptorSets
+        const vk::raii::DescriptorSet &descSet = std::holds_alternative<EarthMaterial>(obj.material)
+                                                     ? earthOutlineDescriptorSets[frameIndex]
+                                                     : descriptorSets[hoveredObjectId][frameIndex];
+
+        commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, outlinePipeline.handle());
         commandBuffer.bindDescriptorSets(
             vk::PipelineBindPoint::eGraphics,
-            outlinePipeline.layout(),
-            0,
-            *descriptorSets[hoveredObjectId][frameIndex],
-            nullptr
+            outlinePipeline.layout(), 0,
+            *descSet, nullptr
         );
-
-        // Scale up slightly for outline effect
-        Transform outlineTransform = obj.transform;
-        outlineTransform.scale *= 1.05f;
 
         const PushConstantData pushData{
             .model = obj.transform.matrix(),
@@ -357,14 +407,12 @@ void Renderer::recordCommandBuffer(const uint32_t imageIndex) const {
         commandBuffer.pushConstants<PushConstantData>(
             outlinePipeline.layout(),
             vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-            0,
-            pushData
+            0, pushData
         );
 
         constexpr vk::DeviceSize offset = 0;
         commandBuffer.bindVertexBuffers(0, *obj.mesh->vertexBuffer().handle(), offset);
-        commandBuffer.bindIndexBuffer(*obj.mesh->indexBuffer().handle(), 0,
-                                      vk::IndexType::eUint32);
+        commandBuffer.bindIndexBuffer(*obj.mesh->indexBuffer().handle(), 0, vk::IndexType::eUint32);
         commandBuffer.drawIndexed(obj.mesh->indexCount(), 1, 0, 0, 0);
     }
 
@@ -403,19 +451,36 @@ void Renderer::updateUniformBuffer(
 }
 
 void Renderer::createDescriptorPool() {
-    const uint32_t objectCount = static_cast<uint32_t>(scene.getObjects().size());
-    const uint32_t setCount = objectCount * MAX_FRAMES_IN_FLIGHT;
+    // Find Earth object count (should be 1)
+    uint32_t earthCount = 0;
+    uint32_t regularCount = 0;
+    for (const auto &obj: scene.getObjects()) {
+        if (std::holds_alternative<EarthMaterial>(obj.material)) ++earthCount;
+        else ++regularCount;
+    }
+
+    const uint32_t regularSetCount = regularCount * MAX_FRAMES_IN_FLIGHT;
+    const uint32_t earthSetCount = earthCount * MAX_FRAMES_IN_FLIGHT;
+    constexpr uint32_t earthOutlineSetCount = MAX_FRAMES_IN_FLIGHT;
+    constexpr uint32_t orbitSetCount = MAX_FRAMES_IN_FLIGHT;
+    constexpr uint32_t skyboxSetCount = MAX_FRAMES_IN_FLIGHT;
+    const uint32_t totalSetCount = regularSetCount + earthSetCount + earthOutlineSetCount + orbitSetCount +
+                                   skyboxSetCount;
 
     std::array<vk::DescriptorPoolSize, 2> poolSizes{
         {
-            {.type = vk::DescriptorType::eUniformBuffer, .descriptorCount = setCount},
-            {.type = vk::DescriptorType::eCombinedImageSampler, .descriptorCount = setCount}
+            {.type = vk::DescriptorType::eUniformBuffer, .descriptorCount = totalSetCount},
+            {
+                .type = vk::DescriptorType::eCombinedImageSampler,
+                // regular: 1 sampler each, earth: 5 samplers each, skybox: 1 each
+                .descriptorCount = regularSetCount * 1 + earthSetCount * 5 + earthOutlineSetCount + skyboxSetCount
+            },
         }
     };
 
     const vk::DescriptorPoolCreateInfo poolInfo{
         .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
-        .maxSets = setCount,
+        .maxSets = totalSetCount,
         .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
         .pPoolSizes = poolSizes.data()
     };
@@ -428,6 +493,9 @@ void Renderer::createDescriptorSets() {
     descriptorSets.resize(objects.size());
 
     for (size_t objIdx = 0; objIdx < objects.size(); ++objIdx) {
+        // Earth gets its own descriptor sets allocated separately
+        if (std::holds_alternative<EarthMaterial>(objects[objIdx].material)) continue;
+
         std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT,
                                                      *pipeline.descriptorLayout());
         const vk::DescriptorSetAllocateInfo allocInfo{
@@ -443,9 +511,10 @@ void Renderer::createDescriptorSets() {
                 .offset = 0,
                 .range = sizeof(UniformBufferObject)
             };
+            const auto tex = std::get<const Texture *>(objects[objIdx].material);
             vk::DescriptorImageInfo imageInfo{
-                .sampler = objects[objIdx].texture->sampler->handle(),
-                .imageView = objects[objIdx].texture->view,
+                .sampler = tex->sampler->handle(),
+                .imageView = tex->view,
                 .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
             };
             std::array<vk::WriteDescriptorSet, 2> writes{
@@ -471,9 +540,202 @@ void Renderer::createDescriptorSets() {
     }
 }
 
+void Renderer::createOrbitDescriptorSets() {
+    std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, *orbitPipeline.descriptorLayout());
+    const vk::DescriptorSetAllocateInfo allocInfo{
+        .descriptorPool = descriptorPool,
+        .descriptorSetCount = static_cast<uint32_t>(layouts.size()),
+        .pSetLayouts = layouts.data()
+    };
+    orbitDescriptorSets = device.logical().allocateDescriptorSets(allocInfo);
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+        vk::DescriptorBufferInfo bufferInfo{
+            .buffer = uniformBuffers[i].handle(),
+            .offset = 0,
+            .range = sizeof(UniformBufferObject)
+        };
+        vk::WriteDescriptorSet write{
+            .dstSet = orbitDescriptorSets[i],
+            .dstBinding = 0,
+            .descriptorCount = 1,
+            .descriptorType = vk::DescriptorType::eUniformBuffer,
+            .pBufferInfo = &bufferInfo
+        };
+        device.logical().updateDescriptorSets(write, {});
+    }
+}
+
+void Renderer::createSkyboxDescriptorSet() {
+    std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT,
+                                                 *skyboxPipeline.descriptorLayout());
+    const vk::DescriptorSetAllocateInfo allocInfo{
+        .descriptorPool = descriptorPool,
+        .descriptorSetCount = static_cast<uint32_t>(layouts.size()),
+        .pSetLayouts = layouts.data()
+    };
+    skyboxDescriptorSets = device.logical().allocateDescriptorSets(allocInfo);
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+        vk::DescriptorBufferInfo bufferInfo{
+            .buffer = uniformBuffers[i].handle(),
+            .offset = 0,
+            .range = sizeof(UniformBufferObject)
+        };
+        vk::DescriptorImageInfo imageInfo{
+            .sampler = skyboxTexture->sampler->handle(),
+            .imageView = skyboxTexture->view,
+            .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
+        };
+        std::array<vk::WriteDescriptorSet, 2> writes{
+            {
+                {
+                    .dstSet = skyboxDescriptorSets[i],
+                    .dstBinding = 0,
+                    .descriptorCount = 1,
+                    .descriptorType = vk::DescriptorType::eUniformBuffer,
+                    .pBufferInfo = &bufferInfo
+                },
+                {
+                    .dstSet = skyboxDescriptorSets[i],
+                    .dstBinding = 1,
+                    .descriptorCount = 1,
+                    .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+                    .pImageInfo = &imageInfo
+                }
+            }
+        };
+        device.logical().updateDescriptorSets(writes, {});
+    }
+}
+
+void Renderer::createEarthDescriptorSets() {
+    const auto &objects = scene.getObjects();
+
+    for (size_t objIdx = 0; objIdx < objects.size(); ++objIdx) {
+        if (!std::holds_alternative<EarthMaterial>(objects[objIdx].material)) continue;
+
+        const auto &[day, night, normal, specular, clouds] = std::get<EarthMaterial>(objects[objIdx].material);
+
+        // ── 6-binding sets for the Earth pipeline ──
+        std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT,
+                                                     *earthPipeline.descriptorLayout());
+        const vk::DescriptorSetAllocateInfo allocInfo{
+            .descriptorPool = descriptorPool,
+            .descriptorSetCount = static_cast<uint32_t>(layouts.size()),
+            .pSetLayouts = layouts.data()
+        };
+        earthDescriptorSets = device.logical().allocateDescriptorSets(allocInfo);
+
+        for (size_t frameIdx = 0; frameIdx < MAX_FRAMES_IN_FLIGHT; ++frameIdx) {
+            vk::DescriptorBufferInfo bufferInfo{
+                .buffer = uniformBuffers[frameIdx].handle(),
+                .offset = 0,
+                .range = sizeof(UniformBufferObject)
+            };
+
+            auto makeImageInfo = [](const Texture *tex) {
+                return vk::DescriptorImageInfo{
+                    .sampler = tex->sampler->handle(),
+                    .imageView = tex->view,
+                    .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
+                };
+            };
+
+            vk::DescriptorImageInfo dayInfo = makeImageInfo(day);
+            vk::DescriptorImageInfo nightInfo = makeImageInfo(night);
+            vk::DescriptorImageInfo normalInfo = makeImageInfo(normal);
+            vk::DescriptorImageInfo specInfo = makeImageInfo(specular);
+            vk::DescriptorImageInfo cloudsInfo = makeImageInfo(clouds);
+
+            std::array<vk::WriteDescriptorSet, 6> writes{
+                {
+                    {
+                        .dstSet = earthDescriptorSets[frameIdx], .dstBinding = 0,
+                        .descriptorCount = 1, .descriptorType = vk::DescriptorType::eUniformBuffer,
+                        .pBufferInfo = &bufferInfo
+                    },
+                    {
+                        .dstSet = earthDescriptorSets[frameIdx], .dstBinding = 1,
+                        .descriptorCount = 1, .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+                        .pImageInfo = &dayInfo
+                    },
+                    {
+                        .dstSet = earthDescriptorSets[frameIdx], .dstBinding = 2,
+                        .descriptorCount = 1, .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+                        .pImageInfo = &nightInfo
+                    },
+                    {
+                        .dstSet = earthDescriptorSets[frameIdx], .dstBinding = 3,
+                        .descriptorCount = 1, .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+                        .pImageInfo = &normalInfo
+                    },
+                    {
+                        .dstSet = earthDescriptorSets[frameIdx], .dstBinding = 4,
+                        .descriptorCount = 1, .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+                        .pImageInfo = &specInfo
+                    },
+                    {
+                        .dstSet = earthDescriptorSets[frameIdx], .dstBinding = 5,
+                        .descriptorCount = 1, .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+                        .pImageInfo = &cloudsInfo
+                    },
+                }
+            };
+            device.logical().updateDescriptorSets(writes, {});
+        }
+
+        // === 2-binding sets for outline/picking compatibility (day texture only) ===
+        std::vector<vk::DescriptorSetLayout> outlineLayouts(MAX_FRAMES_IN_FLIGHT,
+                                                            *pipeline.descriptorLayout());
+        const vk::DescriptorSetAllocateInfo outlineAllocInfo{
+            .descriptorPool = descriptorPool,
+            .descriptorSetCount = static_cast<uint32_t>(outlineLayouts.size()),
+            .pSetLayouts = outlineLayouts.data()
+        };
+        earthOutlineDescriptorSets = device.logical().allocateDescriptorSets(outlineAllocInfo);
+
+        for (size_t frameIdx = 0; frameIdx < MAX_FRAMES_IN_FLIGHT; ++frameIdx) {
+            vk::DescriptorBufferInfo bufferInfo{
+                .buffer = uniformBuffers[frameIdx].handle(),
+                .offset = 0,
+                .range = sizeof(UniformBufferObject)
+            };
+            vk::DescriptorImageInfo dayInfo{
+                .sampler = day->sampler->handle(),
+                .imageView = day->view,
+                .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
+            };
+            std::array<vk::WriteDescriptorSet, 2> writes{
+                {
+                    {
+                        .dstSet = earthOutlineDescriptorSets[frameIdx], .dstBinding = 0,
+                        .descriptorCount = 1, .descriptorType = vk::DescriptorType::eUniformBuffer,
+                        .pBufferInfo = &bufferInfo
+                    },
+                    {
+                        .dstSet = earthOutlineDescriptorSets[frameIdx], .dstBinding = 1,
+                        .descriptorCount = 1, .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+                        .pImageInfo = &dayInfo
+                    },
+                }
+            };
+            device.logical().updateDescriptorSets(writes, {});
+        }
+    }
+}
+
 void Renderer::onSceneReady() {
     createDescriptorPool();
     createDescriptorSets();
+    createOrbitDescriptorSets();
+    createSkyboxDescriptorSet();
+    createEarthDescriptorSets();
+}
+
+void Renderer::setSkybox(const Mesh &mesh, const Texture &texture) {
+    skyboxMesh = &mesh;
+    skyboxTexture = &texture;
 }
 
 void Renderer::createPickingResources() {

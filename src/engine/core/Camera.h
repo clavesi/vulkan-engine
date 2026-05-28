@@ -3,6 +3,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+enum class Mode { eOrbit, eFree };
+
 class Camera {
 public:
     Camera(float distance, float yaw, float pitch, float fov, float nearPlane, float farPlane);
@@ -23,16 +25,20 @@ public:
     // Reset to origin instantly
     void resetTarget();
 
-    glm::mat4 getViewMatrix() const;
-    glm::mat4 getProjectionMatrix(float aspectRatio) const;
+    [[nodiscard]] glm::mat4 getViewMatrix() const;
+    [[nodiscard]] glm::mat4 getProjectionMatrix(float aspectRatio) const;
 
     // Current camera position in world space
-    glm::vec3 getPosition() const;
+    [[nodiscard]] glm::vec3 getPosition() const;
 
-    void setFollowTarget(uint32_t objectId) { followObjectId = objectId; }
+    void setFollowTarget(const uint32_t objectId) { followObjectId = objectId; }
     void clearFollow() { followObjectId = UINT32_MAX; }
-    bool isFollowing() const { return followObjectId != UINT32_MAX; }
-    uint32_t getFollowObjectId() const { return followObjectId; }
+    [[nodiscard]] bool isFollowing() const { return followObjectId != UINT32_MAX; }
+    [[nodiscard]] uint32_t getFollowObjectId() const { return followObjectId; }
+
+    void toggleFreeCam();
+    [[nodiscard]] bool isFreeCam() const { return mode == Mode::eFree; }
+    void onFreeCamMove(glm::vec3 localInput, float deltaTime);
 
 private:
     glm::vec3 target = {0.0f, 0.0f, 0.0f};
@@ -53,6 +59,12 @@ private:
 
     uint32_t followObjectId = UINT32_MAX;
 
+    Mode mode = Mode::eOrbit;
+    glm::vec3 freeCamPos = {0.0f, 0.0f, 0.0f};
+    float freeCamYaw = 0.0f;
+    float freeCamPitch = 0.0f;
+    float moveSpeed = 10.0f;
+
     // How fast mouse drag rotates and scroll zooms
     static constexpr float orbitSensitivity = 0.005f;
     static constexpr float scrollSensitivity = 0.1f;
@@ -62,6 +74,9 @@ private:
     static constexpr float pitchMax = 1.5f; // just under +π/2
 
     // How fast the camera interpolates — higher = snappier
-    static constexpr float targetSmoothSpeed = 8.0f;
+    static constexpr float targetSmoothSpeed = 50.0f;
     static constexpr float distanceSmoothSpeed = 8.0f;
+
+    static constexpr float freeLookSensitivity = 0.003f;
+    static constexpr float speedScrollScale = 1.15f;
 };

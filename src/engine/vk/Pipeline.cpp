@@ -35,7 +35,7 @@ Pipeline::Pipeline(const Device &device, const PipelineSpec &spec) {
 
     // This struct describes what kind of geometry will be drawn from the vertices and if primitive restart should be enabled.
     vk::PipelineInputAssemblyStateCreateInfo inputAssembly{
-        .topology = vk::PrimitiveTopology::eTriangleList
+        .topology = spec.topology
     };
 
     // Make viewport and scissor states dynamic
@@ -84,9 +84,15 @@ Pipeline::Pipeline(const Device &device, const PipelineSpec &spec) {
     // We need two structs:
     // 1) The state contains the configuration per attached framebuffer
     vk::PipelineColorBlendAttachmentState colorBlendAttachment{
-        .blendEnable = vk::False,
-        .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
-                          vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA
+        .blendEnable = spec.blendEnable ? vk::True : vk::False,
+        .srcColorBlendFactor = vk::BlendFactor::eSrcAlpha,
+        .dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha,
+        .colorBlendOp        = vk::BlendOp::eAdd,
+        .srcAlphaBlendFactor = vk::BlendFactor::eOne,
+        .dstAlphaBlendFactor = vk::BlendFactor::eZero,
+        .alphaBlendOp        = vk::BlendOp::eAdd,
+        .colorWriteMask      = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                               vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA
     };
     // 2) Contains global color blending settings
     vk::PipelineColorBlendStateCreateInfo colorBlending{

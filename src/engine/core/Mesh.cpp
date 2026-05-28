@@ -10,11 +10,15 @@ Mesh::Mesh(const Device &device,
          sizeof(vertices[0]) * vertices.size(),
          vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst,
          vk::MemoryPropertyFlagBits::eDeviceLocal),
-      ib(device,
-         sizeof(indices[0]) * indices.size(),
-         vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst,
-         vk::MemoryPropertyFlagBits::eDeviceLocal),
-      idxCount(static_cast<uint32_t>(indices.size())) {
+      idxCount(static_cast<uint32_t>(indices.size())),
+      vtxCount(static_cast<uint32_t>(vertices.size())) {
     vb.uploadViaStaging(vertices.data(), sizeof(vertices[0]) * vertices.size());
-    ib.uploadViaStaging(indices.data(), sizeof(indices[0]) * indices.size());
+
+    if (!indices.empty()) {
+        ib.emplace(device,
+                   sizeof(indices[0]) * indices.size(),
+                   vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst,
+                   vk::MemoryPropertyFlagBits::eDeviceLocal);
+        ib->uploadViaStaging(indices.data(), sizeof(indices[0]) * indices.size());
+    }
 }

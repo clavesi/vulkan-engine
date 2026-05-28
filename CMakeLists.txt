@@ -95,6 +95,7 @@ add_executable(vlk_engine
         # IO
         src/engine/io/FileIO.cpp
         src/engine/io/ModelLoader.cpp
+        src/engine/io/GltfLoader.cpp
         # Core
         src/engine/core/Engine.cpp
         src/engine/core/Window.cpp
@@ -175,6 +176,12 @@ set_target_properties(vlk_engine PROPERTIES CXX_STANDARD 20)
 target_compile_definitions(vlk_engine PRIVATE
         VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
         VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
+
+        # TinyGLTF configuration
+        TINYGLTF_IMPLEMENTATION
+        TINYGLTF_NO_STB_IMAGE        # we already have stb_image
+        TINYGLTF_NO_STB_IMAGE_WRITE
+        TINYGLTF_NO_EXTERNAL_IMAGE
 )
 
 # Copy shaders next to the executable.

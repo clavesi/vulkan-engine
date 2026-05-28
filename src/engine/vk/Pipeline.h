@@ -21,6 +21,8 @@ struct PipelineSpec {
     bool depthTestEnable = true;
     bool depthWriteEnable = true;
     vk::CompareOp depthCompareOp = vk::CompareOp::eLess;
+    vk::PrimitiveTopology topology = vk::PrimitiveTopology::eTriangleList;
+    bool blendEnable = false;
 };
 
 class Pipeline {
